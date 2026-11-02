@@ -1,0 +1,4 @@
+match,owner,team,email
+srv-01,Alice Example,Server Engineering,alice@example.invalid
+10.0.0.10,Bob Example,Server Engineering,bob@example.invalid
+00:11:22:33:44:55,Carol Example,Endpoint Engineering,carol@example.invalid

@@ -1,0 +1,17 @@
+{
+  "vulnerabilities": [
+    {
+      "plugin_id": 900001,
+      "plugin_name": "MS17-010 Example SMB RCE (CVE-2024-0001)",
+      "plugin_family": "Windows",
+      "vulnerability_state": "Active",
+      "severity": 4,
+      "count": 2,
+      "cvss3_base_score": 9.8,
+      "cvss_base_score": 10.0,
+      "vpr_score": 9.5
+    }
+  ],
+  "total_vulnerability_count": 2,
+  "total_asset_count": 0
+}

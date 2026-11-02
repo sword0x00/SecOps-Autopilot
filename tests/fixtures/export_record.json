@@ -1,0 +1,37 @@
+{
+  "asset": {
+    "uuid": "asset-1",
+    "hostname": "srv-01",
+    "ipv4": "10.0.0.10",
+    "mac_address": "00:11:22:33:44:55",
+    "operating_system": ["Microsoft Windows Server 2016"],
+    "agent_uuid": "agent-1"
+  },
+  "plugin": {
+    "id": 900001,
+    "name": "MS17-010 Example SMB RCE (CVE-2024-0001)",
+    "family": "Windows",
+    "cvss3_base_score": 9.8,
+    "cvss_base_score": 10.0,
+    "cvss3_vector": {"raw": "AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"},
+    "vpr": {"score": 9.5},
+    "cve": ["CVE-2024-0001"],
+    "cpe": ["cpe:/o:microsoft:windows"],
+    "exploit_available": true,
+    "exploited_by_malware": true,
+    "exploit_framework_metasploit": true,
+    "in_the_news": true,
+    "has_patch": true,
+    "solution": "Apply KB5034444.",
+    "synopsis": "An example SMB remote code execution issue.",
+    "description": "Synthetic record used by the test suite.",
+    "see_also": ["https://example.invalid/advisory"],
+    "xrefs": [{"name": "cisa-known-exploited", "values": ["2024-01-01"]}]
+  },
+  "severity": 4,
+  "port": {"port": 445, "protocol": "TCP", "service": "cifs"},
+  "output": "The remote host is missing rollup KBs:\n  - 5034444",
+  "first_found": "2026-10-01T00:00:00Z",
+  "last_found": "2026-11-01T10:00:00Z",
+  "state": "OPEN"
+}

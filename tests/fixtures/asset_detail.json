@@ -1,0 +1,17 @@
+{
+  "id": "asset-1",
+  "name": "srv-01",
+  "netbios_name": ["srv-01"],
+  "fqdn": ["srv-01.example.invalid"],
+  "ipv4": ["10.0.0.10"],
+  "mac_address": ["00:11:22:33:44:55"],
+  "operating_system": ["Microsoft Windows Server 2016"],
+  "has_agent": true,
+  "agent_name": ["agent-1"],
+  "acr_score_v3": 8.0,
+  "aes_score_v3": 850.0,
+  "last_seen": "2026-11-01T10:00:00Z",
+  "last_licensed_scan_date": "2026-11-01T09:00:00Z",
+  "last_scan_id": "scan-1",
+  "sources": [{"name": "NESSUS_SCAN"}]
+}

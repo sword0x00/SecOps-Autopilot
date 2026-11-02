@@ -1,0 +1,12 @@
+{
+  "assets": {
+    "srv-01": {
+      "present": true,
+      "vendor": "ExampleEDR",
+      "version": "7.2.0",
+      "feed_age_hours": 6,
+      "infection_status": "infected",
+      "detail": "Example fixture: an EDR detection is present. Copy to .state/edr_status.json to exercise the SOC handoff branch."
+    }
+  }
+}
