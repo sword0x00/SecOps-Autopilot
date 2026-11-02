@@ -80,6 +80,15 @@ The run handles the seven KRI concerns directly:
 6. Waiting for action — run status, explicit next actions, approval ledger.
 7. Reporting — per-stage JSON, Markdown and HTML reports, SHA-256 manifest.
 
+On top of the narrative, the engine emits a per-asset **KRI register** for
+KRI-01 … KRI-07: missing security agent, stale control version, stale threat
+feed, detect-only mode, unpatched MS17-010 host, NAC non-compliant posture, and
+active compromise. Every result is `detected`, `not_detected` (clear),
+`unknown`, or `not_applicable`, with evidence. `unknown` is never treated as
+clear. KRI-06 and KRI-07 route to containment regardless of the numeric score;
+KRI-07 forces isolation, alerts SOC, and blocks restore. Thresholds and scope
+live in an editable JSON catalog.
+
 ## Safety properties
 
 - Read-only until the first approval. `run` never creates a ticket or touches the
@@ -134,5 +143,6 @@ verification result, and the list of things the run did not do.
 ## Repository and license
 
 The engine, skills, agent, playbook, tests, and documentation are in the linked
-repository. MIT licensed. No credentials are stored in the repository; local
+repository. A deterministic `scripts/kri_demo.py` shows all seven detections
+with the example inventories and no tenant. MIT licensed. No credentials are stored in the repository; local
 credentials belong in a git-ignored `.env`.

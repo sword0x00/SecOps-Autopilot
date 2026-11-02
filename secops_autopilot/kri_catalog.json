@@ -1,0 +1,137 @@
+{
+  "version": "1.0",
+  "updated": "2026-11-02",
+  "name": "SecOps Autopilot KRI register",
+  "status_values": ["detected", "not_detected", "unknown", "not_applicable"],
+  "kris": [
+    {
+      "id": "KRI-01",
+      "name": "Missing security agent",
+      "category": "control_coverage",
+      "severity": "high",
+      "description": "No Tenable agent, EDR, or AV is recorded for the asset.",
+      "example": "DC01 has no EDR/AV in the control portal.",
+      "detector": "missing_security_agent",
+      "params": {},
+      "data_sources": [
+        "Tenable asset inventory (has_agent)",
+        "control inventory (EDR/AV presence)",
+        "EDR connector"
+      ],
+      "evidence": ["agent_present", "edr_present", "av_present"],
+      "remediation": "Deploy or repair the endpoint agent, verify telemetry, and record a time-bound exception if the platform cannot host one.",
+      "action": "Ticket to endpoint/security engineering; containment candidate when the asset is otherwise high-KRI.",
+      "stage": "control_check"
+    },
+    {
+      "id": "KRI-02",
+      "name": "Stale control version",
+      "category": "control_currency",
+      "severity": "medium",
+      "description": "Installed AV/EDR version is below the approved baseline.",
+      "example": "WS-FIN-042 AV is behind the approved baseline.",
+      "detector": "stale_control_version",
+      "params": {},
+      "data_sources": [
+        "control inventory (installed AV/EDR version)",
+        "approved baseline version in the control inventory"
+      ],
+      "evidence": ["av_version", "av_baseline_version", "edr_version", "edr_baseline_version"],
+      "remediation": "Upgrade the control to the approved baseline and verify the reported version.",
+      "action": "Ticket to the endpoint owner; track to baseline within the control SLA.",
+      "stage": "control_check"
+    },
+    {
+      "id": "KRI-03",
+      "name": "Stale threat feeds",
+      "category": "detection_currency",
+      "severity": "high",
+      "description": "AV signature or EDR feed age exceeds the 24-hour SLA.",
+      "example": "WS-FIN-042 AV feed age is 11 days, above the 24-hour SLA.",
+      "detector": "stale_threat_feed",
+      "params": {"feed_sla_hours": 24},
+      "data_sources": [
+        "control inventory (AV signature age)",
+        "control inventory / EDR connector (EDR feed age)"
+      ],
+      "evidence": ["av_signature_age_hours", "edr_feed_age_hours"],
+      "remediation": "Restore feed connectivity, force an update, and treat detection as degraded until the feed is fresh.",
+      "action": "Ticket to endpoint/network engineering; compensating controls until fresh.",
+      "stage": "control_check"
+    },
+    {
+      "id": "KRI-04",
+      "name": "Detect-only mode",
+      "category": "enforcement",
+      "severity": "high",
+      "description": "AV/EDR or application control is in monitor/detect mode instead of prevent/block.",
+      "example": "AV on WS-FIN-042 is in monitor mode, not prevent.",
+      "detector": "detect_only_mode",
+      "params": {
+        "monitor_modes": ["monitor", "audit", "detect", "detect-only", "alert", "report"],
+        "prevent_modes": ["prevent", "block", "enforce", "active", "protect"]
+      },
+      "data_sources": [
+        "control inventory (AV mode)",
+        "control inventory / EDR connector (EDR mode)",
+        "control inventory (application-control mode)"
+      ],
+      "evidence": ["av_mode", "edr_mode", "app_control_mode"],
+      "remediation": "Move the control to prevent/enforce after compatibility testing; document any exception.",
+      "action": "Ticket to the control owner; compensating controls while detect-only.",
+      "stage": "control_check"
+    },
+    {
+      "id": "KRI-05",
+      "name": "Unpatched exploitable host",
+      "category": "vulnerability",
+      "severity": "critical",
+      "description": "SMBv1-exposed Windows host is missing MS17-010 (CVE-2017-0144).",
+      "example": "SMBv1 plus missing MS17-010 on two Windows hosts.",
+      "detector": "unpatched_exploitable",
+      "params": {
+        "cves": ["CVE-2017-0144"],
+        "name_markers": ["MS17-010", "ETERNALBLUE"],
+        "service_markers": ["smb", "cifs"]
+      },
+      "data_sources": ["Tenable findings export", "Tenable plugin metadata"],
+      "evidence": ["plugin name/CVE", "SMB service/port", "plugin output"],
+      "remediation": "Apply the MS17-010 patch, disable SMBv1, and block TCP/445 at segment boundaries.",
+      "action": "Patch path plus compensating controls; containment candidate; high KRI score.",
+      "stage": "kri_scoring"
+    },
+    {
+      "id": "KRI-06",
+      "name": "NAC non-compliant posture",
+      "category": "network_access",
+      "severity": "high",
+      "description": "The NAC (Cisco ISE) policy reports the endpoint as non-compliant.",
+      "example": "ISE policy fails on DC01 and WS-FIN-042.",
+      "detector": "nac_noncompliant",
+      "params": {"field": "nac_compliant"},
+      "data_sources": ["Cisco ISE posture / control inventory"],
+      "evidence": ["nac_compliant", "nac_policy"],
+      "remediation": "Route to the remediation VLAN, fix the posture failure, and re-authorize.",
+      "action": "NAC containment candidate; requires the normal approval gates.",
+      "stage": "containment"
+    },
+    {
+      "id": "KRI-07",
+      "name": "Active compromise",
+      "category": "incident",
+      "severity": "critical",
+      "description": "EDR reports an infection or a behavioral detection on the asset.",
+      "example": "EDR behavioral match on WS-MKT-011.",
+      "detector": "active_compromise",
+      "params": {
+        "infection_values": ["infected", "malicious", "compromised"],
+        "clean_values": ["clean", "none_reported", "not_infected", "clear"]
+      },
+      "data_sources": ["EDR connector"],
+      "evidence": ["infection_status", "behavioral_matches"],
+      "remediation": "Isolate, hand off to SOC for triage, and do not restore until the host is cleared.",
+      "action": "Immediate critical alert; containment; SOC handoff; restore blocked.",
+      "stage": "verification"
+    }
+  ]
+}

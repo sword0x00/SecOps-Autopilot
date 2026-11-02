@@ -45,6 +45,7 @@ STAGE_LABELS = {
     "intake": "Intake",
     "exposure": "Exposure",
     "control_check": "Control check",
+    "kri_register": "KRI register",
     "kri_scoring": "KRI scoring",
     "alerting": "Alerting",
     "remediation": "Remediation planning",
@@ -189,15 +190,38 @@ class ControlPosture(_Serializable):
     edr_present: bool | None = None
     edr_vendor: str | None = None
     edr_version: str | None = None
+    edr_baseline_version: str | None = None
     edr_feed_age_hours: float | None = None
+    edr_mode: str | None = None
+    edr_behavioral_matches: list[str] = field(default_factory=list)
     av_present: bool | None = None
     av_vendor: str | None = None
+    av_version: str | None = None
+    av_baseline_version: str | None = None
     av_signature_age_hours: float | None = None
+    av_mode: str | None = None
     app_control_mode: str | None = None
+    nac_compliant: bool | None = None
+    nac_policy: str | None = None
     unknowns: list[dict[str, str]] = field(default_factory=list)
     gaps: list[dict[str, str]] = field(default_factory=list)
     sources: list[SourceRef] = field(default_factory=list)
     control_gap_score: float = 0.0
+
+
+@dataclass
+class KRIDetection(_Serializable):
+    kri_id: str
+    name: str
+    status: str
+    severity: str
+    asset_uuid: str
+    hostname: str
+    evidence: list[str]
+    source: str
+    remediation: str
+    action: str
+    detail: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -244,6 +268,7 @@ class AssetAssessment(_Serializable):
     last_seen: str | None
     last_scan: str | None
     detail_source: str
+    kri_ids: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -272,6 +297,7 @@ class AssetPlan(_Serializable):
     owner_team: str
     kri_score: float
     kri_tier: str
+    kri_ids: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -389,6 +415,7 @@ class RunState(_Serializable):
     source: dict[str, Any]
     vulnerability: dict[str, Any] | None = None
     exposure: list[dict[str, Any]] = field(default_factory=list)
+    kri_detections: list[dict[str, Any]] = field(default_factory=list)
     risk_queue: list[dict[str, Any]] = field(default_factory=list)
     plan: dict[str, Any] | None = None
     ticket: dict[str, Any] | None = None

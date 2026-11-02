@@ -1,12 +1,33 @@
 {
   "assets": {
-    "srv-01": {
+    "DC01": {
+      "present": false,
+      "vendor": null,
+      "version": null,
+      "feed_age_hours": null,
+      "infection_status": "unknown",
+      "behavioral_matches": [],
+      "detail": "Example fixture: no EDR agent is installed on DC01."
+    },
+    "WS-FIN-042": {
+      "present": false,
+      "vendor": null,
+      "version": null,
+      "feed_age_hours": null,
+      "infection_status": "unknown",
+      "behavioral_matches": [],
+      "detail": "Example fixture: the AV control is present but in monitor mode with a stale feed."
+    },
+    "WS-MKT-011": {
       "present": true,
       "vendor": "ExampleEDR",
       "version": "7.2.0",
-      "feed_age_hours": 6,
-      "infection_status": "infected",
-      "detail": "Example fixture: an EDR detection is present. Copy to .state/edr_status.json to exercise the SOC handoff branch."
+      "feed_age_hours": 4,
+      "infection_status": "unknown",
+      "behavioral_matches": [
+        "Synthetic behavioral match: PowerShell spawned by an Office process beaconing to a new external endpoint"
+      ],
+      "detail": "Example fixture: EDR behavioral match, infection status not yet confirmed."
     }
   }
 }

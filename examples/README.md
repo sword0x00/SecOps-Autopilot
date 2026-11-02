@@ -28,15 +28,32 @@ A missing row is recorded as `owner: unknown` with the reason
 ## Controls
 
 ```csv
-match,edr_present,edr_vendor,edr_version,edr_last_seen,edr_feed_age_hours,av_present,av_vendor,av_signature_age_hours,app_control_mode,patch_agent_present,source,updated_at
+match,edr_present,edr_vendor,edr_version,edr_baseline_version,edr_last_seen,edr_feed_age_hours,edr_mode,av_present,av_vendor,av_version,av_baseline_version,av_signature_age_hours,av_mode,app_control_mode,nac_compliant,nac_policy,patch_agent_present,source,updated_at
 ```
 
 - Boolean fields accept `true/false`, `yes/no`, `1/0`.
 - A blank field is **unknown**, not false. The report records the reason.
-- `app_control_mode` is a free-text label from your control plane, for example
-  `enforce`, `audit`, or `disabled`.
+- `*_mode` is a free-text label from your control plane, for example `prevent`,
+  `monitor`, `audit`, or `disabled`.
+- `nac_compliant` (or `nac_posture`) accepts true/false, `compliant`/`noncompliant`,
+  `pass`/`fail`, or `permit`/`deny`.
 - `source` and `updated_at` make the evidence defensible: a reader can see which
   inventory supplied the value and when.
+
+### Which fields drive which KRI
+
+| KRI | Fields |
+|---|---|
+| KRI-01 Missing security agent | `edr_present`, `av_present`, plus Tenable `has_agent` |
+| KRI-02 Stale control version | `edr_version`/`edr_baseline_version`, `av_version`/`av_baseline_version` |
+| KRI-03 Stale threat feeds | `edr_feed_age_hours`, `av_signature_age_hours` (24h SLA) |
+| KRI-04 Detect-only mode | `edr_mode`, `av_mode`, `app_control_mode` |
+| KRI-05 Unpatched exploitable host | Tenable findings for MS17-010/CVE-2017-0144 |
+| KRI-06 NAC non-compliant posture | `nac_compliant` / `nac_posture`, `nac_policy` |
+| KRI-07 Active compromise | EDR `infection_status`, `behavioral_matches` |
+
+The example rows intentionally include DC01, WS-FIN-042, and WS-MKT-011 so the
+seven-KRI catalog can be demonstrated without changing a real control plane.
 
 ## EDR status fixture
 

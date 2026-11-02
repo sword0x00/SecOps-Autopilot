@@ -150,6 +150,7 @@ def _pipeline(
     with_source: bool,
     owners_path: str | None = None,
     controls_path: str | None = None,
+    kri_catalog_path: str | None = None,
 ) -> Pipeline:
     source = _source(settings) if with_source else _NoopSource()
     store = RunStore(settings)
@@ -163,6 +164,7 @@ def _pipeline(
         SimulatedSIEM(settings.state_dir),
         owners=OwnerDirectory(owners_path),
         controls=ControlInventory(controls_path),
+        kri_catalog_path=kri_catalog_path,
     )
 
 
@@ -273,6 +275,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         with_source=True,
         owners_path=args.owners,
         controls_path=args.controls,
+        kri_catalog_path=args.kri_catalog,
     )
     run = pipeline.run(args.cve, date_range=args.date_range, max_assets=args.max_assets)
     if args.json:
@@ -471,6 +474,29 @@ def cmd_runs(args: argparse.Namespace) -> int:
     return 0
 
 
+def _print_kri_register(run: Any) -> None:
+    detections = run.kri_detections or []
+    kri_ids = sorted(
+        {str(item.get("kri_id")) for item in detections if item.get("kri_id")}
+    )
+    if not kri_ids:
+        return
+    print("\nKRI register:")
+    for kri_id in kri_ids:
+        items = [item for item in detections if item.get("kri_id") == kri_id]
+        detected = [item for item in items if item.get("status") == "detected"]
+        unknown = [item for item in items if item.get("status") == "unknown"]
+        name = items[0].get("name", "") if items else ""
+        print(
+            f"  {kri_id} {name}: {len(detected)} detected, "
+            f"{len(unknown)} unknown"
+        )
+        for item in detected[:5]:
+            evidence = "; ".join(item.get("evidence") or [])
+            print(f"    - {item.get('hostname')}: {_fmt(evidence, 110)}")
+    print("  Full per-asset matrix: `secops report --run <id> --format html`")
+
+
 # -- rendering ----------------------------------------------------------
 
 
@@ -526,6 +552,28 @@ def _run_summary(run: Any) -> dict[str, Any]:
         }
         if verification
         else None,
+        "kri_register": {
+            "catalog": (run.options or {}).get("kri_catalog"),
+            "counts": {
+                status: sum(
+                    1
+                    for item in (run.kri_detections or [])
+                    if item.get("status") == status
+                )
+                for status in ("detected", "not_detected", "unknown", "not_applicable")
+            },
+            "detected": [
+                {
+                    "kri_id": item.get("kri_id"),
+                    "name": item.get("name"),
+                    "asset_uuid": item.get("asset_uuid"),
+                    "hostname": item.get("hostname"),
+                    "evidence": item.get("evidence"),
+                }
+                for item in (run.kri_detections or [])
+                if item.get("status") == "detected"
+            ],
+        },
         "alerts": len(run.alerts or []),
         "unknowns": len(
             [
@@ -576,6 +624,8 @@ def _print_run(run: Any, *, detail: bool = False) -> None:
             ],
             width=28,
         ))
+    if run.kri_detections:
+        _print_kri_register(run)
     if plan:
         patch = plan.get("patch_path") or {}
         print(
@@ -671,6 +721,11 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--max-assets", type=int, default=200)
     run.add_argument("--owners", default=None, help="CSV mapping assets to owners")
     run.add_argument("--controls", default=None, help="CSV with EDR/AV/control posture")
+    run.add_argument(
+        "--kri-catalog",
+        default=None,
+        help="Path to a KRI catalog JSON (default: packaged kri_catalog.json)",
+    )
     run.add_argument("--json", action="store_true")
     run.set_defaults(func=cmd_run)
 

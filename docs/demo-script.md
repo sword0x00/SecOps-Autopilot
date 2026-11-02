@@ -14,6 +14,16 @@ Expected: `Workbench read: True`; `Agent inventory: unknown` with the reason
 `Insufficient scope`. Say the quiet part out loud: this is a real scope limit,
 and the engine records it instead of inventing an agent version.
 
+## 0. Show the KRI register without a tenant (20s, optional)
+
+```bash
+python3 scripts/kri_demo.py
+```
+
+This prints the DC01 / WS-FIN-042 / WS-MKT-011 matrix and the two synthetic
+MS17-010 hosts. It is deterministic and makes no network calls. Use it if the
+live tenant does not have a control inventory that matches the demo hosts.
+
 ## 1. Tenant context (30s)
 
 ```bash
@@ -36,7 +46,18 @@ Walk the table:
   weaponized, and the control posture is absent/unknown.
 - One asset has a MAC address; one does not.
 - Patch path: KB4013389 / KB4013429 / MS17-010.
+- The KRI register: KRI-05 (unpatched MS17-010) is detected on both hosts.
+  KRI-01/02/03/04/06 are unknown without a control inventory; KRI-07 is unknown
+  without an EDR signal. Say plainly that unknown is not clear.
 - The run stopped at `awaiting_ticket_approval`. Nothing has changed.
+
+The full KRI matrix is in the report. To exercise all seven detections with the
+synthetic DC01 / WS-FIN-042 / WS-MKT-011 examples:
+
+```bash
+python3 -m unittest tests.test_kri -v
+python3 -m unittest tests.test_flow.FlowTest.test_kri_07_detected_forces_isolation_and_soc_handoff -v
+```
 
 Optional: add the example inventories to show owner and EDR enrichment:
 
@@ -120,6 +141,7 @@ Open the HTML report. Point to:
 - the live-vs-simulated banner,
 - the stage timeline,
 - control gaps and unknowns,
+- the KRI register matrix and detected evidence,
 - the KRI component table,
 - the approval ledger with the plan hash,
 - the blocked-containment reason,

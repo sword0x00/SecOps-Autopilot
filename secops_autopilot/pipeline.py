@@ -8,6 +8,7 @@ binds to the remediation plan's SHA-256.
 from __future__ import annotations
 
 from collections import defaultdict
+from pathlib import Path
 from typing import Any
 
 from .config import Settings
@@ -17,6 +18,13 @@ from .controlcheck import build_control_posture
 from .controls import ControlInventory, OwnerDirectory
 from .errors import ApprovalError, ConnectorError, SecOpsError, StateError
 from .intake import build_vulnerability, normalize_cve
+from .kri import (
+    catalog_summary,
+    detected_kri_ids,
+    detection_counts,
+    evaluate_kri_register,
+    load_catalog,
+)
 from .models import (
     GATE_CONTAINMENT,
     GATE_REMEDIATION,
@@ -77,6 +85,7 @@ class Pipeline:
         *,
         owners: OwnerDirectory | None = None,
         controls: ControlInventory | None = None,
+        kri_catalog_path: str | Path | None = None,
     ) -> None:
         self.settings = settings
         self.source = source
@@ -87,6 +96,7 @@ class Pipeline:
         self.siem = siem
         self.owners = owners or OwnerDirectory()
         self.controls = controls or ControlInventory()
+        self.kri_catalog_path = kri_catalog_path
 
     # -- read-only pipeline --------------------------------------------
 
@@ -100,6 +110,7 @@ class Pipeline:
         target_cve = normalize_cve(cve)
         date_range = int(date_range or self.settings.date_range)
         max_assets = int(max_assets or 200)
+        catalog = load_catalog(self.kri_catalog_path)
         target = {"type": "cve", "value": target_cve}
         options = {
             "date_range": date_range,
@@ -107,10 +118,12 @@ class Pipeline:
             "isolate_threshold": self.settings.isolate_threshold,
             "owners_inventory": str(self.owners.path) if self.owners.path else None,
             "controls_inventory": str(self.controls.path) if self.controls.path else None,
+            "kri_catalog": catalog_summary(catalog),
             "source": self.source.name,
         }
         run = self.store.create(target, options, self.source.public_snapshot())
         run.truthfulness = self._truthfulness()
+        run.truthfulness["kri_catalog"] = catalog_summary(catalog)
         self.store.save(run)
 
         started = utc_now()
@@ -287,6 +300,7 @@ class Pipeline:
                 edr_status=edr_status,
             )
             item["control"] = control
+            item["control_entry"] = control_entry
             item["edr_status"] = edr_status
             for unknown in control.unknowns:
                 control_unknowns.append(
@@ -324,7 +338,54 @@ class Pipeline:
             source_calls=self._calls(),
         )
 
-        # -- stage 4: KRI scoring -------------------------------------
+        # -- stage 4a: KRI register -----------------------------------
+        started = utc_now()
+        detections = evaluate_kri_register(contexts, vulnerability, catalog)
+        run.kri_detections = [detection.to_dict() for detection in detections]
+        for item in contexts:
+            item["kri_ids"] = detected_kri_ids(
+                run.kri_detections, item["asset"].uuid
+            )
+        for detection in detections:
+            if detection.kri_id == "KRI-07" and detection.status == "detected":
+                self._emit_alert(
+                    run,
+                    severity="critical",
+                    code="KRI_ACTIVE_COMPROMISE",
+                    message=(
+                        f"KRI-07 active compromise on {detection.hostname}: "
+                        + "; ".join(detection.evidence)
+                    ),
+                    assets=[detection.asset_uuid],
+                )
+        counts = detection_counts(detections)
+        register_unknowns = [
+            {
+                "field": f"{detection.kri_id} on {detection.hostname}",
+                "reason": "; ".join(detection.evidence),
+            }
+            for detection in detections
+            if detection.status == "unknown"
+        ]
+        self.store.write_stage(
+            run,
+            "kri_register",
+            {
+                "catalog": catalog_summary(catalog),
+                "counts": counts,
+                "detections": run.kri_detections,
+            },
+            summary=(
+                f"{len(detections)} KRI evaluation(s) across {len(contexts)} asset(s): "
+                f"{counts['detected']} detected, {counts['not_detected']} clear, "
+                f"{counts['unknown']} unknown, {counts['not_applicable']} not applicable."
+            ),
+            started_at=started,
+            unknowns=register_unknowns,
+            source_calls=self._calls(),
+        )
+
+        # -- stage 4b: KRI risk score ---------------------------------
         started = utc_now()
         assessments: list[AssetAssessment] = []
         for item in contexts:
@@ -1210,6 +1271,7 @@ class Pipeline:
             last_seen=detail.get("last_seen") or item["asset"].last_seen,
             last_scan=detail.get("last_scan"),
             detail_source=detail.get("source_ref") or item["detail_error"] or "tenable export",
+            kri_ids=list(item.get("kri_ids") or []),
         )
 
     def _merge_asset(self, base: AssetRef, detail: dict[str, Any]) -> AssetRef:

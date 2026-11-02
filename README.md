@@ -15,7 +15,7 @@ It is an orchestration layer, not another scanner.
 | 1 | Intake | Normalize a CVE and map it to Tenable plugins and findings | Typed vulnerability record |
 | 2 | Exposure | Resolve affected endpoints and servers, with owner when a CMDB export is supplied | Asset list with source and confidence |
 | 3 | Control check | Check Tenable agent presence, version/feed where exposed, EDR/AV/application-control posture where an inventory exists | Per-asset control posture with explicit unknowns |
-| 4 | KRI scoring | Rank by severity, exploit maturity, exposure, control gap, and asset criticality | Transparent 0–100 KRI and work queue |
+| 4 | KRI register + scoring | Detect KRI-01 … KRI-07 per asset, then rank by severity, exploit maturity, exposure, control gap, and asset criticality | Per-asset KRI matrix plus transparent 0–100 risk score |
 | 5 | Remediation | Select the patch path and compensating controls matched to the exploit mechanism | Plan with unverified controls called out |
 | 6 | Ticket | Create the ITSM ticket and record infosec approval | Ticket bound to the plan SHA-256 |
 | 7 | Containment | Quarantine non-compliant devices via Cisco ISE ANC | Isolation event, or a blocked record when the MAC is unknown |
@@ -28,11 +28,11 @@ The engine maps directly to the KRI process it was built for:
 
 | KRI requirement | Where it is handled |
 |---|---|
-| 1. Agents and controls installed on endpoints and servers | Stage 3 — Tenable `has_agent`, agent records when the API scope permits, EDR/AV from an optional control inventory |
-| 2. Latest version, signature feed, application-control modes | Stage 3 — values recorded when a connector exposes them; otherwise `unknown` with the exact reason |
+| 1. Agents and controls installed on endpoints and servers | Stage 3 + KRI-01 — Tenable `has_agent`, agent records when the API scope permits, EDR/AV from an optional control inventory |
+| 2. Latest version, signature feed, application-control modes | Stage 3 + KRI-02/03/04 — installed vs baseline, feed age vs 24h SLA, prevent vs detect-only; otherwise `unknown` with the exact reason |
 | 3. Compensating controls/workarounds, ITSM ticket, infosec approval, team routing | Stage 5 plan, stage 6 ticket, approval ledger; owner routing from `owners.csv` when supplied |
 | 4. Ticketing → NAC isolation → patch/AV → restore or infected EDR/SOC handoff | Stages 6–8; infection is an explicit branch, never inferred |
-| 5. Alert | High/critical KRI, containment, verification failures, and EDR infections emit alert records |
+| 5. Alert | High/critical risk, KRI-07 active compromise, containment, verification failures, and EDR infections emit alert records |
 | 6. Waiting for action | Run status, explicit `next_actions`, and approval ledger |
 | 7. Reporting | Per-stage JSON, Markdown/HTML report, SHA-256 manifest |
 
@@ -89,9 +89,10 @@ the exact reason when an optional scope is unavailable.
 secops run --cve CVE-2017-0144
 ```
 
-This performs intake, exposure, control check, KRI scoring, and remediation
-planning. It creates **no** ticket, **no** containment, and **no** external state
-change. The run stops and prints the first approval command.
+This performs intake, exposure, control check, the seven-KRI register, risk
+scoring, and remediation planning. It creates **no** ticket, **no** containment,
+and **no** external state change. The run stops and prints the first approval
+command and the per-asset KRI register.
 
 ### Pass the gates (state-changing)
 
@@ -150,8 +151,9 @@ flowchart TD
     A[Tenable VM / SC<br/>CVE query + findings export] --> B[Intake]
     B --> C[Exposure + asset detail]
     C --> D[Control check]
-    D --> E[KRI scoring]
-    E --> F[Remediation plan]
+    D --> E[KRI register<br/>KRI-01 .. KRI-07]
+    E --> E2[KRI risk score]
+    E2 --> F[Remediation plan]
     F --> G{Approval: ticket}
     G -->|approved| H{Approval: remediation}
     H -->|approved| I[Containment<br/>ISE ANC]
@@ -222,6 +224,35 @@ absent, a control gap ≥ 4.0/10, or no patch path.
 
 See [docs/kri-model.md](docs/kri-model.md).
 
+## KRI register
+
+The packaged catalog (`secops_autopilot/kri_catalog.json`) evaluates seven named
+indicators on every affected asset. Each result is `detected`, `not_detected`
+(clear), `unknown`, or `not_applicable`; `unknown` is never treated as clear.
+
+| ID | Name | Detection source | Route |
+|---|---|---|---|
+| KRI-01 | Missing security agent | Tenable `has_agent`; EDR/AV presence | Control gap / ticket |
+| KRI-02 | Stale control version | Installed vs approved baseline | Control gap / ticket |
+| KRI-03 | Stale threat feeds | AV/EDR feed age > 24h | Degraded detection / ticket |
+| KRI-04 | Detect-only mode | AV/EDR/app-control mode | Compensation / ticket |
+| KRI-05 | Unpatched exploitable host | MS17-010/CVE-2017-0144 finding + SMB | Patch / containment candidate |
+| KRI-06 | NAC non-compliant posture | ISE/control-inventory posture | Containment candidate |
+| KRI-07 | Active compromise | EDR infection or behavioral match | Isolate / SOC handoff / no restore |
+
+Customize thresholds or add CVEs with `--kri-catalog`. The full rules, status
+semantics, and the DC01 / WS-FIN-042 / WS-MKT-011 examples are in
+[docs/kri-catalog.md](docs/kri-catalog.md).
+
+See the full register without a tenant:
+
+```bash
+python3 scripts/kri_demo.py
+```
+
+The demo uses the example control/EDR inventories and synthetic MS17-010
+findings. It makes no network calls and no state changes.
+
 ## Testing
 
 ```bash
@@ -252,12 +283,15 @@ no tenant credentials are needed.
 
 ```
 secops_autopilot/          engine, models, scoring, evidence, CLI
+  kri.py                   KRI-01 .. KRI-07 detectors
+  kri_catalog.json         editable KRI definitions, thresholds, routing
   connectors/              Tenable VM, Tenable SC, ITSM, NAC, EDR, SIEM
 skills/                    Claude Code skills (intake, remediation planning)
 .claude/agents/            orchestrator agent
 playbooks/                 end-to-end chained workflow
 examples/                  owner and control inventory schemas
-docs/                      integration, KRI model, safety, demo script
+scripts/                   live demo and deterministic KRI demo
+docs/                      integration, KRI catalog/model, safety, demo script
 submission/                CyberAgents Exchange listing draft
 tests/                     unit and end-to-end tests with a fake Tenable source
 ```

@@ -64,15 +64,25 @@ def build_control_posture(
         edr_present = edr_status.get("present")
     edr_vendor = control_entry.get("edr_vendor") or edr_status.get("vendor")
     edr_version = control_entry.get("edr_version") or edr_status.get("version")
+    edr_baseline_version = control_entry.get("edr_baseline_version")
     edr_feed_age = (
         control_entry.get("edr_feed_age_hours")
         if control_entry.get("edr_feed_age_hours") is not None
         else edr_status.get("feed_age_hours")
     )
+    edr_mode = control_entry.get("edr_mode")
+    edr_behavioral_matches = [
+        str(item) for item in (edr_status.get("behavioral_matches") or [])
+    ]
     av_present = control_entry.get("av_present")
     av_vendor = control_entry.get("av_vendor")
+    av_version = control_entry.get("av_version")
+    av_baseline_version = control_entry.get("av_baseline_version")
     av_signature_age = control_entry.get("av_signature_age_hours")
+    av_mode = control_entry.get("av_mode")
     app_control_mode = control_entry.get("app_control_mode")
+    nac_compliant = control_entry.get("nac_compliant")
+    nac_policy = control_entry.get("nac_policy")
     patch_agent_present = control_entry.get("patch_agent_present")
 
     source_names = [str(item) for item in (detail.get("sources") or [])]
@@ -307,11 +317,19 @@ def build_control_posture(
         edr_present=edr_present,
         edr_vendor=edr_vendor,
         edr_version=edr_version,
+        edr_baseline_version=edr_baseline_version,
         edr_feed_age_hours=edr_feed_age,
+        edr_mode=edr_mode,
+        edr_behavioral_matches=edr_behavioral_matches,
         av_present=av_present,
         av_vendor=av_vendor,
+        av_version=av_version,
+        av_baseline_version=av_baseline_version,
         av_signature_age_hours=av_signature_age,
+        av_mode=av_mode,
         app_control_mode=app_control_mode,
+        nac_compliant=nac_compliant,
+        nac_policy=nac_policy,
         unknowns=unknowns,
         gaps=gaps,
         sources=sources,

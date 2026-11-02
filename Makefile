@@ -1,4 +1,4 @@
-.PHONY: install test doctor inventory demo report clean
+.PHONY: install test doctor inventory demo kri-demo report clean
 
 install:
 	python3 -m pip install -e .
@@ -14,6 +14,9 @@ inventory:
 
 demo:
 	./scripts/demo.sh
+
+kri-demo:
+	python3 scripts/kri_demo.py
 
 report:
 	@python3 -m secops_autopilot runs

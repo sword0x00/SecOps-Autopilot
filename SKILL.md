@@ -56,7 +56,7 @@ CVE is gone and EDR has not reported an infection.
 | 1 | Intake | `Pipeline.run` | Normalized CVE record with Tenable plugin hits |
 | 2 | Exposure | `Pipeline.run` | Affected assets with owner where available |
 | 3 | Control check | `Pipeline.run` | Per-asset agent/EDR/AV posture and unknowns |
-| 4 | KRI scoring | `Pipeline.run` | Transparent 0–100 score and ranked queue |
+| 4 | KRI register + scoring | `Pipeline.run` | Per-asset KRI-01 … KRI-07 matrix plus transparent 0–100 score |
 | 5 | Remediation | `Pipeline.run` | Patch path, compensating controls, workarounds |
 | 6 | Ticket | `approve --gate ticket` then `--gate remediation` | Ticket and approval ledger |
 | 7 | Containment | `approve --gate containment` | ISE ANC event or blocked record |
@@ -64,6 +64,21 @@ CVE is gone and EDR has not reported an infection.
 | 9 | Evidence | `report` / every stage | JSON, Markdown, HTML, SHA-256 manifest |
 
 Read-only stages 1–5 run unattended. Stages 6–8 cannot.
+
+## KRI register
+
+The engine evaluates the seven named KRIs from
+`secops_autopilot/kri_catalog.json` on every affected asset:
+
+KRI-01 missing security agent, KRI-02 stale control version, KRI-03 stale threat
+feed, KRI-04 detect-only mode, KRI-05 unpatched MS17-010 host, KRI-06 NAC
+non-compliant, KRI-07 active compromise.
+
+Each is `detected`, `not_detected`, `unknown`, or `not_applicable`, with
+evidence and an action. `unknown` is never treated as clear. KRI-06 and KRI-07
+propose containment regardless of the numeric score; KRI-07 forces isolation and
+blocks restore. Use `--controls` to supply the EDR/AV/baseline/NAC fields and
+`--kri-catalog` to customize thresholds.
 
 ## When the user asks for a CVE
 
@@ -103,6 +118,7 @@ date window or confirm the tenant scope.
 
 - `README.md` — full quickstart, architecture, limitations.
 - `docs/tenable-integration.md` — endpoints, filters, scope limits.
+- `docs/kri-catalog.md` — KRI-01 … KRI-07 detection rules and examples.
 - `docs/kri-model.md` — scoring formula and containment policy.
 - `docs/security-and-safety.md` — approval and evidence model.
 - `docs/demo-script.md` — five-minute demonstration.

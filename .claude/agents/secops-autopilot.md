@@ -32,12 +32,12 @@ evidenced fix. You do not scan, exploit, or invent data.
 ```bash
 secops doctor
 secops inventory
-secops run --cve <CVE> [--owners owners.csv] [--controls controls.csv]
+secops run --cve <CVE> [--owners owners.csv] [--controls controls.csv] [--kri-catalog kri_catalog.json]
 ```
 
-Summarize the affected assets, KRI tiers, control gaps, patch path, compensating
-controls, containment candidates, and unknowns. The run stops at
-`awaiting_ticket_approval`.
+Summarize the affected assets, KRI register detections, KRI tiers, control gaps,
+patch path, compensating controls, containment candidates, and unknowns. The run
+stops at `awaiting_ticket_approval`.
 
 ### Approval gates
 
@@ -74,9 +74,12 @@ Tenable gives `has_agent`, asset ACR/AES, and last scan. Agent version/feed may 
 out of scope; EDR/AV/mode come from a control inventory. Record the scope error
 verbatim in the unknowns.
 
-### KRI scoring
-Show the components and the unknowns. Do not present the score as a Tenable
-value; it is the engine's transparent blend.
+### KRI register and scoring
+First report the seven named KRIs (KRI-01 … KRI-07) per asset and their status:
+`detected`, `not_detected`, `unknown`, or `not_applicable`. Unknown is not clear.
+KRI-06 and KRI-07 route to containment; KRI-07 forces isolation and blocks
+restore. Then show the numeric score components and unknowns. Do not present the
+score as a Tenable value; it is the engine's transparent blend.
 
 ### Remediation
 Patch first. Compensating controls are recommendations matched to the mechanism

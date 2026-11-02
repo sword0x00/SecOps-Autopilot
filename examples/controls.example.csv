@@ -1,3 +1,6 @@
-match,edr_present,edr_vendor,edr_version,edr_last_seen,edr_feed_age_hours,av_present,av_vendor,av_signature_age_hours,app_control_mode,patch_agent_present,source,updated_at
-srv-01,true,ExampleEDR,7.2,2026-11-02T10:00:00Z,6,true,ExampleAV,12,enforce,true,example-control-inventory,2026-11-02T10:05:00Z
-10.0.0.10,true,ExampleEDR,7.2,2026-11-02T10:00:00Z,6,true,ExampleAV,12,enforce,true,example-control-inventory,2026-11-02T10:05:00Z
+match,edr_present,edr_vendor,edr_version,edr_baseline_version,edr_last_seen,edr_feed_age_hours,edr_mode,av_present,av_vendor,av_version,av_baseline_version,av_signature_age_hours,av_mode,app_control_mode,nac_compliant,nac_policy,patch_agent_present,source,updated_at
+srv-01,true,ExampleEDR,7.2.0,7.2.0,2026-11-02T10:00:00Z,6,prevent,true,ExampleAV,12.4.1,12.4.0,12,prevent,enforce,true,ISE-CORP,true,example-control-inventory,2026-11-02T10:05:00Z
+10.0.0.10,true,ExampleEDR,7.2.0,7.2.0,2026-11-02T10:00:00Z,6,prevent,true,ExampleAV,12.4.1,12.4.0,12,prevent,enforce,true,ISE-CORP,true,example-control-inventory,2026-11-02T10:05:00Z
+DC01,false,,,,,,,false,,,,,,,false,ISE-CORP,true,example-control-inventory,2026-11-02T10:05:00Z
+WS-FIN-042,false,,,,,,,true,ExampleAV,6.5.0,7.0.0,264,monitor,monitor,false,ISE-CORP,true,example-control-inventory,2026-11-02T10:05:00Z
+WS-MKT-011,true,ExampleEDR,7.2.0,7.2.0,2026-11-02T10:00:00Z,4,prevent,true,ExampleAV,12.4.1,12.4.0,8,prevent,enforce,true,ISE-CORP,true,example-control-inventory,2026-11-02T10:05:00Z

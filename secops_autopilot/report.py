@@ -117,7 +117,7 @@ def _coverage(run: RunState) -> list[tuple[str, str, str]]:
         (
             "1. Agents & controls installed on endpoints and servers",
             "covered" if control_known and edr_known else "partial" if exposure else "unknown",
-            "Control posture section — Tenable agent flag; EDR/AV only when an inventory CSV is supplied.",
+            "Control posture and KRI register sections — Tenable agent flag; EDR/AV when an inventory CSV is supplied.",
         ),
         (
             "2. Latest version, signature feed, and application-control modes",
@@ -126,7 +126,7 @@ def _coverage(run: RunState) -> list[tuple[str, str, str]]:
             else "partial"
             if any((a.get("control") or {}).get("agent_version") for a in exposure)
             else "unknown",
-            "Control posture section — version/feed/mode where the API or inventory exposes it; otherwise unknown with a reason.",
+            "Control posture and KRI register sections — version/feed/mode where the API or inventory exposes it; otherwise unknown with a reason.",
         ),
         (
             "3. Compensating controls / workarounds, ITSM ticket, infosec approval, team routing",
@@ -144,12 +144,12 @@ def _coverage(run: RunState) -> list[tuple[str, str, str]]:
             else "partial"
             if containment or ticket
             else "pending",
-            "Ticket, containment, and verification sections; infection branch is explicit.",
+            "Ticket, containment, and verification sections; KRI-06/KRI-07 drive containment, infection branch is explicit.",
         ),
         (
             "5. Alert",
             "covered" if alerts else "not triggered",
-            "Alerts section — local SIEM sink; no external SIEM was contacted.",
+            "Alerts section — KRI-07 emits a critical alert; the SIEM sink is local and simulated.",
         ),
         (
             "6. Waiting for action",
@@ -162,6 +162,58 @@ def _coverage(run: RunState) -> list[tuple[str, str, str]]:
             "This report plus stage records and the SHA-256 manifest.",
         ),
     ]
+
+
+KRI_STATUS_LABELS = {
+    "detected": "detected",
+    "not_detected": "clear",
+    "unknown": "unknown",
+    "not_applicable": "n/a",
+}
+
+
+def _kri_ids(detections: list[dict[str, Any]]) -> list[str]:
+    return sorted(
+        {str(item.get("kri_id")) for item in detections if item.get("kri_id")},
+        key=lambda item: (len(item), item),
+    )
+
+
+def _kri_matrix(detections: list[dict[str, Any]]) -> dict[str, dict[str, dict[str, Any]]]:
+    matrix: dict[str, dict[str, dict[str, Any]]] = {}
+    for item in detections:
+        matrix.setdefault(str(item.get("asset_uuid")), {})[
+            str(item.get("kri_id"))
+        ] = item
+    return matrix
+
+
+def _kri_summary(
+    detections: list[dict[str, Any]], ids: list[str]
+) -> list[dict[str, Any]]:
+    rows = []
+    for kri_id in ids:
+        items = [item for item in detections if item.get("kri_id") == kri_id]
+        counts = {
+            "detected": sum(1 for item in items if item.get("status") == "detected"),
+            "not_detected": sum(1 for item in items if item.get("status") == "not_detected"),
+            "unknown": sum(1 for item in items if item.get("status") == "unknown"),
+            "not_applicable": sum(1 for item in items if item.get("status") == "not_applicable"),
+        }
+        first = items[0] if items else {}
+        rows.append(
+            {
+                "id": kri_id,
+                "name": first.get("name", ""),
+                "action": first.get("action", ""),
+                **counts,
+            }
+        )
+    return rows
+
+
+def _kri_status_label(status: Any) -> str:
+    return KRI_STATUS_LABELS.get(str(status), str(status))
 
 
 # -- Markdown -----------------------------------------------------------
@@ -238,6 +290,12 @@ def render_markdown(run: RunState) -> str:
                 f"- {name}: {snapshot.get('product') or snapshot.get('name')} "
                 f"(live={snapshot.get('live')}, simulated={snapshot.get('simulated')})"
             )
+    catalog = (data.get("options") or {}).get("kri_catalog") or {}
+    if catalog:
+        add(
+            f"- KRI catalog: {_md(catalog.get('name'))} "
+            f"v{_md(catalog.get('version'))} — {catalog.get('count')} definitions"
+        )
     add("")
 
     add("## 3. Stage timeline")
@@ -338,7 +396,68 @@ def render_markdown(run: RunState) -> str:
                 )
             add("")
 
-    add("## 7. KRI scoring")
+    add("## 7. KRI register")
+    add("")
+    detections = data.get("kri_detections") or []
+    if detections:
+        kri_ids = _kri_ids(detections)
+        kri_summary = _kri_summary(detections, kri_ids)
+        matrix = _kri_matrix(detections)
+        status_counts = {
+            status: sum(1 for item in detections if item.get("status") == status)
+            for status in ("detected", "not_detected", "unknown", "not_applicable")
+        }
+        add(
+            f"**{len(kri_ids)} KRI definitions on {len(matrix)} asset(s).** "
+            f"Detected {status_counts['detected']}, "
+            f"clear {status_counts['not_detected']}, "
+            f"unknown {status_counts['unknown']}, "
+            f"n/a {status_counts['not_applicable']}."
+        )
+        add("")
+        add("| KRI | Name | Detected | Clear | Unknown | N/A | Action |")
+        add("|---|---|---|---|---|---|---|")
+        for row in kri_summary:
+            add(
+                f"| {_md(row['id'])} | {_md(row['name'])} | {row['detected']} | "
+                f"{row['not_detected']} | {row['unknown']} | "
+                f"{row['not_applicable']} | {_md(row['action'])} |"
+            )
+        add("")
+        add("### Per-asset KRI matrix")
+        add("")
+        add("| Asset | " + " | ".join(kri_ids) + " |")
+        add("|---|" + "|".join(["---"] * len(kri_ids)) + "|")
+        for asset_uuid, cells in matrix.items():
+            hostname = next(iter(cells.values())).get("hostname", asset_uuid)
+            row = [f"| {_md(hostname)} |"]
+            for kri_id in kri_ids:
+                status = (cells.get(kri_id) or {}).get("status")
+                row.append(f" {_md(_kri_status_label(status))} |")
+            add("".join(row))
+        add("")
+        detected_items = [
+            item for item in detections if item.get("status") == "detected"
+        ]
+        if detected_items:
+            add("### Detected KRI evidence")
+            add("")
+            for item in detected_items:
+                evidence = "; ".join(item.get("evidence") or []).rstrip(" .")
+                add(
+                    f"- **{_md(item.get('kri_id'))} {_md(item.get('name'))}** on "
+                    f"`{_md(item.get('hostname'))}` — {_md(evidence)}. "
+                    f"Action: {_md(item.get('action'))}"
+                )
+            add("")
+        else:
+            add("No KRI was detected as present.")
+            add("")
+    else:
+        add("No KRI register was recorded in this run.")
+        add("")
+
+    add("## 8. KRI scoring")
     add("")
     add(
         "The score is a weighted blend of severity, exploitability, exposure, control "
@@ -361,7 +480,7 @@ def render_markdown(run: RunState) -> str:
             )
         add("")
 
-    add("## 8. Remediation plan")
+    add("## 9. Remediation plan")
     add("")
     if plan:
         patch = plan.get("patch_path") or {}
@@ -410,7 +529,7 @@ def render_markdown(run: RunState) -> str:
                 add(f"- {note}")
             add("")
 
-    add("## 9. Alerts")
+    add("## 10. Alerts")
     add("")
     if alerts:
         add("| Severity | Code | Message | Assets | Sink | Receipt |")
@@ -426,7 +545,7 @@ def render_markdown(run: RunState) -> str:
         add("No alert threshold was crossed, or the run has not reached exposure yet.")
         add("")
 
-    add("## 10. Ticket and approvals")
+    add("## 11. Ticket and approvals")
     add("")
     if ticket:
         add(
@@ -449,7 +568,7 @@ def render_markdown(run: RunState) -> str:
         add("No approval has been recorded. The run is read-only.")
         add("")
 
-    add("## 11. Containment")
+    add("## 12. Containment")
     add("")
     if containment:
         add("| Event | Asset | MAC | Action | Status | Policy | VLAN | Approver | Simulated | Reason |")
@@ -466,7 +585,7 @@ def render_markdown(run: RunState) -> str:
         add("No containment action has been executed. Containment requires an approval.")
         add("")
 
-    add("## 12. Verification")
+    add("## 13. Verification")
     add("")
     if verification:
         add(
@@ -501,7 +620,7 @@ def render_markdown(run: RunState) -> str:
         add("Verification has not run. Absence of a verification record is not a fix.")
         add("")
 
-    add("## 13. Open questions and unknowns")
+    add("## 14. Open questions and unknowns")
     add("")
     unknowns = _unknowns(run)
     if unknowns:
@@ -517,7 +636,7 @@ def render_markdown(run: RunState) -> str:
             add(f"- {action}")
         add("")
 
-    add("## 14. KRI coverage")
+    add("## 15. KRI coverage")
     add("")
     add("| KRI requirement | Status | Where |")
     add("|---|---|---|")
@@ -525,7 +644,7 @@ def render_markdown(run: RunState) -> str:
         add(f"| {_md(requirement)} | {_md(status)} | {_md(where)} |")
     add("")
 
-    add("## 15. Evidence integrity")
+    add("## 16. Evidence integrity")
     add("")
     add("Stage records:")
     add("")
@@ -538,7 +657,7 @@ def render_markdown(run: RunState) -> str:
     )
     add("")
 
-    add("## 16. What this run did not do")
+    add("## 17. What this run did not do")
     add("")
     add("- It did not push a patch, reboot a host, or change an endpoint itself.")
     add("- It did not execute containment without a recorded approval.")
@@ -598,6 +717,8 @@ tr:last-child td{border-bottom:0}
 code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px}
 code{background:var(--panel-2);border:1px solid var(--line);border-radius:5px;padding:1px 5px;word-break:break-word}
 .kri{display:flex;align-items:center;gap:8px;min-width:120px}
+.kri-summary td:first-child,.kri-summary th:first-child,
+.kri-matrix td:first-child,.kri-matrix th:first-child{white-space:nowrap}
 .bar{flex:1;height:7px;background:var(--panel-2);border:1px solid var(--line);border-radius:999px;overflow:hidden;min-width:52px}
 .bar span{display:block;height:100%;background:var(--accent)}
 .bar span.critical{background:var(--critical)}.bar span.high{background:var(--high)}
@@ -624,6 +745,19 @@ def _tier_badge(tier: Any) -> str:
     return f'<span class="badge {html.escape(name)}">{html.escape(name)}</span>'
 
 
+def _kri_badge(status: Any) -> str:
+    kind = {
+        "detected": "critical",
+        "not_detected": "low",
+        "unknown": "unknown",
+        "not_applicable": "unknown",
+    }.get(str(status), "unknown")
+    return (
+        f'<span class="badge {kind}">'
+        f"{_h(_kri_status_label(status))}</span>"
+    )
+
+
 def _kri_cell(score: Any, tier: Any) -> str:
     value = float(score) if isinstance(score, (int, float)) else 0.0
     pct = max(0.0, min(100.0, value))
@@ -634,7 +768,13 @@ def _kri_cell(score: Any, tier: Any) -> str:
     )
 
 
-def _table(headers: list[str], rows: list[list[str]], *, raw: bool = False) -> str:
+def _table(
+    headers: list[str],
+    rows: list[list[str]],
+    *,
+    raw: bool = False,
+    class_name: str = "",
+) -> str:
     head = "".join(f"<th>{_h(header)}</th>" for header in headers)
     body = []
     for row in rows:
@@ -642,8 +782,9 @@ def _table(headers: list[str], rows: list[list[str]], *, raw: bool = False) -> s
         for cell in row:
             cells.append(f"<td>{cell if raw else _h(cell)}</td>")
         body.append("<tr>" + "".join(cells) + "</tr>")
+    cls = f' class="{html.escape(class_name)}"' if class_name else ""
     return (
-        '<div class="table-wrap"><table><thead><tr>'
+        f'<div class="table-wrap"><table{cls}><thead><tr>'
         + head
         + "</tr></thead><tbody>"
         + "".join(body)
@@ -710,9 +851,15 @@ def render_html(run: RunState) -> str:
   pushed and no containment executed without a recorded approval.
 </div>
 """
+    detected_kri = sum(
+        1
+        for item in (data.get("kri_detections") or [])
+        if item.get("status") == "detected"
+    )
     tiles = f"""
 <div class="grid">
   <div class="tile"><div class="label">Affected assets</div><div class="value">{len(exposure)}</div><div class="note">{tiers.get('critical',0)} critical · {tiers.get('high',0)} high KRI</div></div>
+  <div class="tile"><div class="label">KRI detections</div><div class="value">{detected_kri}</div><div class="note">KRI-01 … KRI-07</div></div>
   <div class="tile"><div class="label">Top KRI</div><div class="value">{_score((riskiest or {}).get('risk', {}).get('score')).replace('.0','')}</div><div class="note">{_h((riskiest or {}).get('asset', {}).get('hostname') or '—')}</div></div>
   <div class="tile"><div class="label">Contained</div><div class="value">{contained}</div><div class="note">approval-gated NAC events</div></div>
   <div class="tile"><div class="label">Verified remediated</div><div class="value">{remediated}</div><div class="note">from a fresh Tenable query</div></div>
@@ -736,6 +883,14 @@ def render_html(run: RunState) -> str:
                     f"{snapshot.get('product') or snapshot.get('name')} · live={snapshot.get('live')} · simulated={snapshot.get('simulated')}",
                 ]
             )
+    catalog = (data.get("options") or {}).get("kri_catalog") or {}
+    if catalog:
+        provenance_rows.append(
+            [
+                "KRI catalog",
+                f"{catalog.get('name')} v{catalog.get('version')} · {catalog.get('count')} definitions",
+            ]
+        )
     provenance = _table(["Item", "Value"], provenance_rows)
 
     timeline_rows = []
@@ -849,6 +1004,65 @@ def render_html(run: RunState) -> str:
             f"{_h(gap.get('severity', 'unknown'))}: {_h(gap.get('reason'))}</li>"
             for asset, gap in gaps
         ) + "</ul>"
+
+    detections = data.get("kri_detections") or []
+    if detections:
+        kri_ids = _kri_ids(detections)
+        summary_rows = _kri_summary(detections, kri_ids)
+        matrix = _kri_matrix(detections)
+        status_counts = {
+            status: sum(1 for item in detections if item.get("status") == status)
+            for status in ("detected", "not_detected", "unknown", "not_applicable")
+        }
+        kri_html = (
+            f"<p><strong>{len(kri_ids)} KRI definitions on {len(matrix)} asset(s).</strong> "
+            f"Detected {status_counts['detected']}, clear {status_counts['not_detected']}, "
+            f"unknown {status_counts['unknown']}, n/a {status_counts['not_applicable']}.</p>"
+        )
+        kri_html += _table(
+            ["KRI", "Name", "Detected", "Clear", "Unknown", "N/A", "Action"],
+            [
+                [
+                    row["id"],
+                    row["name"],
+                    row["detected"],
+                    row["not_detected"],
+                    row["unknown"],
+                    row["not_applicable"],
+                    row["action"],
+                ]
+                for row in summary_rows
+            ],
+            class_name="kri-summary",
+        )
+        matrix_rows = []
+        for asset_uuid, cells in matrix.items():
+            hostname = next(iter(cells.values())).get("hostname", asset_uuid)
+            matrix_rows.append(
+                [_h(hostname)]
+                + [
+                    _kri_badge((cells.get(kri_id) or {}).get("status"))
+                    for kri_id in kri_ids
+                ]
+            )
+        kri_html += "<h3>Per-asset KRI matrix</h3>" + _table(
+            ["Asset"] + kri_ids, matrix_rows, raw=True, class_name="kri-matrix"
+        )
+        detected_items = [
+            item for item in detections if item.get("status") == "detected"
+        ]
+        if detected_items:
+            kri_html += "<h3>Detected KRI evidence</h3><ul>" + "".join(
+                f"<li><strong>{_h(item.get('kri_id'))} {_h(item.get('name'))}</strong> "
+                f"on <code>{_h(item.get('hostname'))}</code> — "
+                f"{_h('; '.join(item.get('evidence') or []).rstrip(' .'))}. "
+                f"Action: {_h(item.get('action'))}</li>"
+                for item in detected_items
+            ) + "</ul>"
+        else:
+            kri_html += "<p>No KRI was detected as present.</p>"
+    else:
+        kri_html = "<p>No KRI register was recorded in this run.</p>"
 
     plan_html = ""
     if plan:
@@ -1046,6 +1260,7 @@ def render_html(run: RunState) -> str:
         _section("Intake", intake, "intake"),
         _section("Exposure", exposure_table, "exposure"),
         _section("Control posture", control_table + gaps_html, "controls"),
+        _section("KRI register", kri_html, "kri-register"),
         _section(
             "KRI scoring",
             "<p>The score blends severity, exploitability, exposure, control gap, and asset "

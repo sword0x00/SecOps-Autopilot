@@ -48,6 +48,20 @@ def _asset_keys(asset: AssetRef) -> list[str]:
     return [str(key).strip().lower() for key in keys if key]
 
 
+def _parse_nac(value: str | None) -> bool | None:
+    parsed = as_bool(value)
+    if parsed is not None:
+        return parsed
+    text = (value or "").strip().lower()
+    if not text:
+        return None
+    if any(token in text for token in ("noncompliant", "non-compliant", "fail", "deny", "denied")):
+        return False
+    if any(token in text for token in ("compliant", "pass", "permit", "allow")):
+        return True
+    return None
+
+
 def _matches(row: dict[str, str], keys: list[str]) -> bool:
     match = (row.get("match") or "").strip().lower()
     if not match:
@@ -103,12 +117,21 @@ class ControlInventory:
                 "edr_present": as_bool(row.get("edr_present")),
                 "edr_vendor": row.get("edr_vendor") or None,
                 "edr_version": row.get("edr_version") or None,
+                "edr_baseline_version": row.get("edr_baseline_version") or None,
                 "edr_last_seen": row.get("edr_last_seen") or None,
                 "edr_feed_age_hours": as_float(row.get("edr_feed_age_hours")),
+                "edr_mode": row.get("edr_mode") or None,
                 "av_present": as_bool(row.get("av_present")),
                 "av_vendor": row.get("av_vendor") or None,
+                "av_version": row.get("av_version") or None,
+                "av_baseline_version": row.get("av_baseline_version") or None,
                 "av_signature_age_hours": as_float(row.get("av_signature_age_hours")),
+                "av_mode": row.get("av_mode") or None,
                 "app_control_mode": row.get("app_control_mode") or None,
+                "nac_compliant": _parse_nac(
+                    row.get("nac_compliant") or row.get("nac_posture")
+                ),
+                "nac_policy": row.get("nac_policy") or None,
                 "patch_agent_present": as_bool(row.get("patch_agent_present")),
                 "updated_at": row.get("updated_at") or None,
             }

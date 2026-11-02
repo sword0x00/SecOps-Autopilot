@@ -3,6 +3,12 @@
 The score answers a different question than CVSS: *how much does this finding
 matter on this asset, with the controls that are actually present?*
 
+> **Two layers, one report.** The *KRI register* (KRI-01 … KRI-07) records named
+> control/exploit indicators per asset with a status and evidence. The *KRI risk
+> score* is the 0–100 ranking number described below. The register is defined in
+> [`kri-catalog.md`](kri-catalog.md); the score uses the control posture and
+> findings, including KRI detections, but remains a separate arithmetic record.
+
 ## Formula
 
 ```text
@@ -100,5 +106,8 @@ middle value. A reader can see exactly which components were excluded.
   separate scoring input.
 - Control gap treats unknowns as risk. This is conservative; the report makes
   the assumption visible.
+- The named KRI register is independent of the numeric weights. A KRI can be
+  `detected` without crossing the containment score threshold; KRI-06 and KRI-07
+  explicitly route to containment regardless of the numeric score.
 - The weights are defaults, not a universal truth. Tune them in
   `secops_autopilot/scoring.py` and keep the change in the evidence history.

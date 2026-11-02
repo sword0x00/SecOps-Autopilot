@@ -39,6 +39,9 @@ secops = "secops_autopilot.cli:main"
 [tool.setuptools.packages.find]
 include = ["secops_autopilot*"]
 
+[tool.setuptools.package-data]
+secops_autopilot = ["kri_catalog.json"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"

@@ -250,7 +250,16 @@ def build_plan(
 
     per_asset: list[AssetPlan] = []
     for assessment in assessments:
-        if assessment.patch_available is True:
+        kri_ids = set(assessment.kri_ids)
+        active_compromise = "KRI-07" in kri_ids
+        nac_noncompliant = "KRI-06" in kri_ids
+        if active_compromise:
+            path = "isolate"
+            reason = (
+                "KRI-07 active compromise: isolate now and hand off to SOC; "
+                "patch after containment."
+            )
+        elif assessment.patch_available is True:
             path = "patch"
             reason = "Tenable reports a patch is available for this detection."
         elif assessment.patch_available is False:
@@ -264,28 +273,39 @@ def build_plan(
             )
         gap = assessment.control.control_gap_score
         triggers = []
+        if kri_ids:
+            triggers.append("KRI register detected: " + ", ".join(sorted(kri_ids)))
         if assessment.risk.score >= isolate_threshold:
             triggers.append(
-                f"KRI {assessment.risk.score:.1f} >= threshold {isolate_threshold:.1f}"
+                f"KRI risk score {assessment.risk.score:.1f} >= threshold {isolate_threshold:.1f}"
             )
         if assessment.control.agent_present is False:
             triggers.append("Tenable reports no endpoint agent")
         if gap >= CONTAINMENT_CONTROL_GAP:
             triggers.append(f"control gap {gap:.1f}/10")
+        if nac_noncompliant:
+            triggers.append("KRI-06 NAC non-compliance")
+        if active_compromise:
+            triggers.append("KRI-07 active compromise requires isolation")
         if path != "patch":
             triggers.append(f"remediation path is {path}")
-        containment = path == "isolate" or (
-            assessment.risk.score >= isolate_threshold
-            and (
-                assessment.control.agent_present is False
-                or gap >= CONTAINMENT_CONTROL_GAP
-                or path != "patch"
+        containment = (
+            path == "isolate"
+            or active_compromise
+            or nac_noncompliant
+            or (
+                assessment.risk.score >= isolate_threshold
+                and (
+                    assessment.control.agent_present is False
+                    or gap >= CONTAINMENT_CONTROL_GAP
+                    or path != "patch"
+                )
             )
         )
         containment_reason = (
             "; ".join(triggers)
             if triggers
-            else f"below containment threshold (KRI {assessment.risk.score:.1f})"
+            else f"below containment threshold (KRI risk score {assessment.risk.score:.1f})"
         )
         per_asset.append(
             AssetPlan(
@@ -300,6 +320,7 @@ def build_plan(
                 owner_team=assessment.owner.team,
                 kri_score=assessment.risk.score,
                 kri_tier=assessment.risk.tier,
+                kri_ids=sorted(kri_ids),
             )
         )
 
@@ -312,14 +333,16 @@ def build_plan(
     if patch_available is None:
         notes.append("Patch availability is unknown; confirm with the asset owner/vendor.")
     notes.append(
-        "Containment is proposed when KRI is at/above the threshold and the control "
-        f"gap is at least {CONTAINMENT_CONTROL_GAP}/10, the agent is absent, or the "
-        "patch path is not available. It remains a proposal until approval."
+        "Containment is proposed when the KRI risk score is at/above the threshold "
+        f"and the control gap is at least {CONTAINMENT_CONTROL_GAP}/10, the agent is "
+        "absent, the patch path is not available, KRI-06 is detected, or KRI-07 is "
+        "detected. KRI-07 forces the isolate path. It remains a proposal until approval."
     )
     if mechanisms == "smb":
         notes.append(
             "SMB exposure: verify port 445 reachability and SMBv1 state on each host "
-            "before relying on a network control."
+            "before relying on a network control. KRI-05 covers the missing MS17-010 "
+            "patch; SMBv1 state still requires host confirmation."
         )
 
     plan = RemediationPlan(

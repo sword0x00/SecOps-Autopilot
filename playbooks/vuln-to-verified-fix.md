@@ -9,8 +9,9 @@ flowchart TD
     A[Vulnerability report<br/>CVE / advisory / zero-day] --> B[Intake<br/>normalize record]
     B --> C[Exposure<br/>resolve affected assets]
     C --> D[Control check<br/>EDR / AV / patch agent]
-    D --> E[KRI scoring<br/>rank real risk]
-    E --> F[Remediation planning<br/>patch + compensating controls]
+    D --> E[KRI register<br/>KRI-01 .. KRI-07]
+    E --> E2[KRI risk score<br/>rank real risk]
+    E2 --> F[Remediation planning<br/>patch + compensating controls]
     F --> G{ITSM ticket<br/>infosec approval}
     G -->|approved| H[NAC containment<br/>remediation VLAN]
     G -->|rejected| F
@@ -47,6 +48,25 @@ secops approve --run <RUN_ID> --gate restore --approver "<name>"
 secops report --run <RUN_ID> --format html --verify
 ```
 
+## KRI detection matrix
+
+The engine evaluates the packaged catalog (`secops_autopilot/kri_catalog.json`)
+for every affected asset. Each result is `detected`, `not_detected` (clear),
+`unknown`, or `not_applicable`; `unknown` is never treated as clear.
+
+| KRI | Detects | Evidence | Routing |
+|---|---|---|---|
+| KRI-01 | Missing security agent | Tenable `has_agent`, EDR/AV presence | Control gap; ticket |
+| KRI-02 | Stale control version | Installed vs approved baseline | Control gap; ticket |
+| KRI-03 | Stale threat feeds | AV signature/EDR feed age > 24h | Degraded detection; ticket |
+| KRI-04 | Detect-only mode | AV/EDR/app-control mode | Compensation; ticket |
+| KRI-05 | Unpatched exploitable host | MS17-010/CVE-2017-0144 finding + SMB | Patch + compensating controls |
+| KRI-06 | NAC non-compliant posture | ISE/control-inventory posture | Containment candidate |
+| KRI-07 | Active compromise | EDR infection/behavioral match | Isolate, SOC handoff, no restore |
+
+The full rules and examples are in
+[`docs/kri-catalog.md`](../docs/kri-catalog.md).
+
 ## Stages
 
 ### 1. Intake — `secops run`
@@ -65,12 +85,17 @@ not silently dropped.
 
 ### 3. Control check — `secops run`
 Per asset: Tenable agent flag, agent record where the API scope permits, last
-scan, and EDR/AV/application-control fields from the optional control inventory.
+scan, and EDR/AV fields from the optional control inventory: version and
+approved baseline, feed age, mode, application-control mode, and NAC posture.
 Every missing field is `unknown` with a reason.
 
-### 4. KRI scoring — `secops run`
-Rank by severity, exploitability, exposure, control gap, and criticality — not
-raw CVSS alone. The component arithmetic and unknown list are in the report.
+### 4. KRI register and risk score — `secops run`
+First evaluate the seven named KRIs per asset and record the evidence:
+KRI-01 missing agent, KRI-02 stale version, KRI-03 stale feed, KRI-04
+detect-only, KRI-05 unpatched MS17-010, KRI-06 NAC non-compliant, KRI-07 active
+compromise. Then rank by severity, exploitability, exposure, control gap, and
+criticality — not raw CVSS alone. The register matrix, component arithmetic, and
+unknown list are in the report.
 
 ### 5. Remediation planning — `secops run`
 Patch path first. For assets that cannot patch on schedule, select compensating
@@ -85,14 +110,17 @@ gate. The approval binds to the plan SHA-256.
 **Gate:** human infosec approval required before stage 7.
 
 ### 7. Containment — `secops approve --gate containment`
-NAC (Cisco ISE) moves non-compliant devices to a remediation VLAN. Assets without
-a MAC are recorded as blocked, not guessed.
+NAC (Cisco ISE) moves non-compliant devices to a remediation VLAN. KRI-06
+detections and KRI-07 active compromises are containment candidates even when the
+numeric score is below the default threshold. Assets without a MAC are recorded
+as blocked, not guessed.
 
 **Gate:** requires the stage 6 approval.
 
 ### 8. Verification — `secops verify`
 Re-query Tenable. Compliant → restore is proposed. Still affected → isolation is
-retained and the owner is escalated. Infected → EDR/SOC handoff with the evidence.
+retained and the owner is escalated. KRI-07/EDR infected → SOC handoff with the
+evidence and restore is refused.
 
 ### 9. Evidence — every stage, then `report`
 The full run record: every stage, approval, containment event, verification

@@ -53,6 +53,23 @@ class FlowTest(unittest.TestCase):
         self.assertTrue(run.plan["workarounds"])
         self.assertEqual(len(run.alerts), 2)
         self.assertTrue(all(alert["code"] == "HIGH_KRI_EXPOSURE" for alert in run.alerts))
+        self.assertEqual(len(run.kri_detections), 14)
+        self.assertIn("kri_register", run.stages)
+        detected = {
+            (item["kri_id"], item["asset_uuid"])
+            for item in run.kri_detections
+            if item["status"] == "detected"
+        }
+        self.assertTrue(any(kri_id == "KRI-05" for kri_id, _ in detected))
+        self.assertTrue(
+            any(
+                item["kri_id"] == "KRI-07" and item["status"] == "unknown"
+                for item in run.kri_detections
+            )
+        )
+        self.assertTrue(
+            all("KRI-05" in item["kri_ids"] for item in run.plan["per_asset"])
+        )
         directory = self.pipeline.store.run_dir(run.run_id)
         self.assertTrue((directory / "report.md").is_file())
         self.assertTrue((directory / "report.html").is_file())
@@ -60,6 +77,8 @@ class FlowTest(unittest.TestCase):
         report = (directory / "report.md").read_text(encoding="utf-8")
         self.assertIn(CVE, report)
         self.assertIn("Read this first", report)
+        self.assertIn("KRI register", report)
+        self.assertIn("KRI-05", report)
 
     def test_approval_chain_isolates_only_assets_with_a_mac(self):
         run = self._advance_to_verification()
@@ -97,6 +116,49 @@ class FlowTest(unittest.TestCase):
         restores = [event for event in run.containment if event["action"] == "restore"]
         self.assertEqual(len(restores), 1)
         self.assertEqual(restores[0]["status"], "restored")
+
+    def test_kri_07_detected_forces_isolation_and_soc_handoff(self):
+        status_file = self.settings.state_dir / "edr_status.json"
+        status_file.parent.mkdir(parents=True, exist_ok=True)
+        status_file.write_text(
+            json.dumps(
+                {
+                    "assets": {
+                        "asset-1": {
+                            "present": True,
+                            "vendor": "ExampleEDR",
+                            "infection_status": "infected",
+                            "behavioral_matches": ["Synthetic beacon"],
+                        }
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        self.source.after = []
+        run = self.pipeline.run(CVE)
+        detection = [
+            item
+            for item in run.kri_detections
+            if item["kri_id"] == "KRI-07" and item["asset_uuid"] == "asset-1"
+        ][0]
+        self.assertEqual(detection["status"], "detected")
+        plan_item = [
+            item for item in run.plan["per_asset"] if item["asset_uuid"] == "asset-1"
+        ][0]
+        self.assertEqual(plan_item["path"], "isolate")
+        self.assertTrue(plan_item["containment_recommended"])
+        self.assertIn("KRI-07", plan_item["containment_reason"])
+        self.assertTrue(
+            any(alert["code"] == "KRI_ACTIVE_COMPROMISE" for alert in run.alerts)
+        )
+        run = self.pipeline.approve(run.run_id, GATE_TICKET, "Ticket Approver")
+        run = self.pipeline.approve(run.run_id, GATE_REMEDIATION, "Infosec Approver")
+        run = self.pipeline.approve(run.run_id, GATE_CONTAINMENT, "SecOps Lead")
+        run = self.pipeline.verify(run.run_id)
+        self.assertEqual(run.status, "escalated_to_soc")
+        with self.assertRaises(StateError):
+            self.pipeline.approve(run.run_id, GATE_RESTORE, "SecOps Lead")
 
     def test_edr_infection_escalates_and_blocks_restore(self):
         self.source.after = []

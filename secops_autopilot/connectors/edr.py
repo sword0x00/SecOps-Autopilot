@@ -40,6 +40,9 @@ class SimulatedEDR:
                     "version": entry.get("version"),
                     "feed_age_hours": entry.get("feed_age_hours"),
                     "infection_status": entry.get("infection_status") or "unknown",
+                    "behavioral_matches": [
+                        str(item) for item in (entry.get("behavioral_matches") or [])
+                    ],
                     "source": "simulated_edr:.state/edr_status.json",
                     "detail": entry.get("detail"),
                 }
@@ -49,6 +52,7 @@ class SimulatedEDR:
             "version": None,
             "feed_age_hours": None,
             "infection_status": "unknown",
+            "behavioral_matches": [],
             "source": "no EDR integration configured",
             "detail": (
                 "No EDR tenant or status fixture is configured. The engine cannot "

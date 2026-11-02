@@ -9,7 +9,7 @@ An orchestration layer, not another scanner. It takes an already-identified vuln
 1. **Intake** — normalize the vulnerability into one record
 2. **Exposure** — find which endpoints and servers are actually affected
 3. **Control check** — confirm agent/EDR/AV presence, versions, feeds, and modes
-4. **KRI scoring** — rank by real risk, not raw CVSS
+4. **KRI register + scoring** — detect KRI-01 … KRI-07 per asset, then rank by real risk, not raw CVSS
 5. **Remediation** — patch path plus compensating controls (IPS/SIEM/WAF/firewall)
 6. **Ticket** — ITSM ticket with owner, evidence, and infosec approval gate
 7. **Containment** — NAC (Cisco ISE) isolates non-compliant devices to a remediation VLAN
@@ -26,7 +26,8 @@ pyproject.toml                   package + `secops` console script
 secops_autopilot/
   cli.py                         doctor, inventory, run, approve, verify, report, evidence
   pipeline.py                    stage orchestration and approval gates
-  intake.py  scoring.py          stage 1 and stage 4 logic
+  intake.py  scoring.py          stage 1 and stage 4 risk-score logic
+  kri.py  kri_catalog.json       KRI-01 … KRI-07 register and thresholds
   remediation.py                 stage 5 patch/control planning
   controlcheck.py                stage 3 posture and unknowns
   store.py  report.py            evidence store, Markdown/HTML reports
@@ -43,7 +44,7 @@ skills/
 playbooks/
   vuln-to-verified-fix.md        end-to-end chained workflow
 examples/                        owner and control inventory CSV schemas
-docs/                            integration, KRI model, safety, demo script
+docs/                            integration, KRI catalog/model, safety, demo script
 submission/                      CyberAgents Exchange listing draft
 tests/                           unit + end-to-end tests with a fake Tenable source
 ```
@@ -74,6 +75,7 @@ python3 -m unittest discover -s tests -v
 
 - Tenable filters: `plugin.attributes.cve.raw` on `/workbenches/vulnerabilities`; export filters use a `filters` object (`{"plugin_id":[...]}`).
 - Agent inventory may be out of API scope; record the 403 reason instead of inferring a version.
+- The KRI register is data-driven from `secops_autopilot/kri_catalog.json`; `unknown` is not `not_detected`. KRI-06/KRI-07 route to containment, and KRI-07 forces isolation and blocks restore.
 - Approval binds to the remediation plan SHA-256; modifying the plan invalidates it.
 - Verification is a fresh read. A missing finding after a rescan is evidence; a stale scan is not.
 
