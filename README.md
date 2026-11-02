@@ -2,7 +2,7 @@
 
 **Carry a vulnerability from a Tenable finding to an approval-gated containment and a verified, evidenced fix.**
 
-SecOps teams own the gap between "a CVE affects us" and "the fix is verified on every affected box." Closing it means stitching together the vulnerability scanner, the CMDB, the EDR console, the patch-management portal, the NAC, and the ticketing system — then chasing owners by hand.
+SecOps teams own the gap between "a CVE affects us" and "the fix is verified on every affected box." Closing it means stitching together the vulnerability scanner, the UCMDB, the EDR console, the patch-management portal, the NAC, and the ticketing system — then chasing owners by hand.
 
 SecOps Autopilot automates that chain for **Tenable Vulnerability Management** and **Tenable Security Center**, stops at every state change for a recorded human approval, and produces an audit-ready evidence package as it runs.
 
