@@ -47,7 +47,7 @@ The engine maps directly to the KRI process it was built for:
 | EDR | Simulated | Returns `unknown` unless a status fixture or a real connector is supplied; never claims "clean" |
 | SIEM alerts | Simulated | Alerts are recorded locally; no SIEM is contacted |
 
-Every simulated action is labelled `simulated: true` in the run record and in the report.
+Every simulated action is labelled `simulated: true` in the run record and in the reports.
 
 ## Quickstart
 
