@@ -131,8 +131,9 @@ date window, confirm the tenant scope, or supply a scanner export.
 - Optional EDR/AV inventory: `--controls examples/controls.example.csv`.
 - Advisory metadata: `--advisory <json>`; provenance is required for a
   `verified` claim.
-- Live Cisco ISE: set `ISE_URL`, `ISE_USERNAME`, `ISE_PASSWORD`. The adapter is
-  implemented from the documented ERS API but is not live-validated here.
+- Live NAC solution (Cisco ISE ERS): set `ISE_URL`, `ISE_USERNAME`,
+  `ISE_PASSWORD`. The adapter is implemented from the documented ERS API but is
+  not live-validated here.
 - Security Center: set `TENABLE_SC_URL`, `TENABLE_SC_ACCESS_KEY`,
   `TENABLE_SC_SECRET_KEY`, and run with `--source sc`.
 - Patch management is simulated; a live adapter implements the same
@@ -153,7 +154,7 @@ date window, confirm the tenant scope, or supply a scanner export.
 ## Status
 
 Implemented. The Tenable Vulnerability Management path is live-tested; the
-Security Center and Cisco ISE adapters are documented-API implementations that
+Security Center and NAC solution adapters are documented-API implementations that
 are explicitly marked not live-validated. Ticketing, EDR, and patch management
 default to file-backed simulators. Live PHP/Node.js batch reports and per-run
 management summaries are under `reports/`.

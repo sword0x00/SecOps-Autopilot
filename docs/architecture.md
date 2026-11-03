@@ -281,7 +281,7 @@ Recommended metrics, all derivable from the run records:
 ## 11. Limitations
 
 - The live Tenable Vulnerability Management path is the only live-validated
-  scanner integration. Security Center and ISE adapters follow documented APIs
+  scanner integration. Security Center and NAC solution adapters follow documented APIs
   but are marked not live-validated in this environment.
 - Ticketing, NAC, EDR, and patch management are simulated by default.
 - The engine does not exploit, patch, reboot, or execute on endpoints.

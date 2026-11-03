@@ -1,8 +1,8 @@
 """NAC connectors.
 
-The safe default is ``SimulatedNAC`` (file-backed endpoint state). When ISE
-credentials are configured, ``CiscoISEAdapter`` issues the documented ERS ANC
-apply/clear calls. The ISE path is intentionally loud about not being
+The safe default is ``SimulatedNAC`` (file-backed endpoint state). When Cisco
+ISE ERS credentials are configured, ``CiscoISEAdapter`` issues the documented
+ERS apply/clear calls. The adapter is intentionally loud about not being
 live-validated in this environment.
 """
 
@@ -43,7 +43,7 @@ class SimulatedNAC:
     ) -> dict[str, Any]:
         if not mac:
             raise ConnectorError(
-                "ISE ANC requires an endpoint MAC address; this asset has none. "
+                "The NAC solution requires an endpoint MAC address; this asset has none. "
                 "Containment must be performed manually or the asset identity enriched."
             )
 
@@ -89,7 +89,7 @@ class SimulatedNAC:
     def public_snapshot(self) -> dict[str, Any]:
         return {
             "name": self.name,
-            "product": "Cisco ISE (simulated)",
+            "product": "NAC solution (simulated)",
             "live": False,
             "simulated": True,
             "note": (
@@ -114,7 +114,7 @@ class CiscoISEAdapter:
         timeout: int = 30,
     ) -> None:
         if not settings.configured:
-            raise ConnectorError("Cisco ISE is not configured")
+            raise ConnectorError("NAC solution adapter (Cisco ISE ERS) is not configured")
         self.settings = settings
         self.base_url = (settings.base_url or "").rstrip("/")
         self.timeout = timeout
@@ -174,9 +174,9 @@ class CiscoISEAdapter:
         mac = kwargs.get("mac")
         if not mac:
             raise ConnectorError(
-                "ISE ANC requires an endpoint MAC address; this asset has none."
+                "The NAC solution requires an endpoint MAC address; this asset has none."
             )
-        # The ISE ANC policy is a configured control-plane object; do not send
+        # The NAC quarantine policy is a configured control-plane object; do not send
         # the run's audit label as the policy name.
         policy = self.settings.anc_action
         self._ensure_policy()
@@ -222,7 +222,7 @@ class CiscoISEAdapter:
         def mutate(data: dict[str, Any]) -> dict[str, Any]:
             next_id = int(data.get("next_id", 1))
             data["next_id"] = next_id + 1
-            event["event_id"] = f"ISE-{next_id:06d}"
+            event["event_id"] = f"NAC-{next_id:06d}"
             data.setdefault("events", []).append(event)
             return event
 
@@ -237,14 +237,14 @@ class CiscoISEAdapter:
     def public_snapshot(self) -> dict[str, Any]:
         return {
             "name": self.name,
-            "product": "Cisco ISE",
+            "product": "NAC solution (Cisco ISE ERS)",
             "base_url": self.base_url,
             "live": True,
             "simulated": False,
             "validated": False,
             "note": (
-                "ERS ANC apply/clear calls follow the documented API but have not "
-                "been exercised against a live ISE deployment in this environment."
+                "ERS apply/clear calls follow the documented API but have not "
+                "been exercised against a live NAC deployment in this environment."
             ),
             "remediation_vlan": self.vlan,
         }

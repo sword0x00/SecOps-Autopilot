@@ -55,9 +55,9 @@ stage emits a structured record. The run can be replayed from its records.
 - **Tenable Security Center** has an adapter following the documented `/rest`
   API (`analysis` with `vulndetails`, asset detail, agent inventory). It is
   marked not live-tested because no SC appliance was available in the lab.
-- **Cisco ISE** has an ERS ANC adapter for quarantine/clear. It activates only
-  when credentials are configured and records that it is not live-validated.
-- Ticketing, EDR, and patch management default to file-backed simulators so the approval and
+- **NAC solution** (Cisco ISE ERS adapter) handles quarantine/clear. It activates
+  only when credentials are configured and records that it is not live-validated.
+- Ticketing, EDR, and patch management default to file-backed simulators so the Human Approval and
   evidence flow can be demonstrated without changing production state. Every
   simulated action is labelled as simulated.
 
@@ -136,7 +136,7 @@ jobs, the verification result, and the list of things the run did not do.
 
 ## Limitations
 
-- The Security Center and Cisco ISE adapters are implemented from the documented
+- The Security Center and NAC solution adapters are implemented from the documented
   APIs but are not live-validated in this environment.
 - The default ticketing/NAC/EDR/patch connectors are simulators, clearly labelled.
 - Asset owners, EDR/AV health, and runtime versions require a asset inventory/control

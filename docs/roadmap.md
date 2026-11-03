@@ -15,7 +15,7 @@ omitted; the project is not resourced against a calendar in this repository.
 | Scan-freshness guard (stale scan is unknown, not a fix) | **Implemented and tested** | `stages/verification.py`, `tests/test_flow.py` |
 | Evidence reports with advisory provenance, contracts, patch jobs | **Implemented and tested** | `report.py`, generated `report.md`/`report.html` |
 | Live Tenable Vulnerability Management path | **Implemented and live-tested previously** | `docs/tenable-integration.md` |
-| Live Cisco ISE ERS; Tenable Security Center | **Implemented, not live-validated in this environment** | code labels and `doctor` output |
+| Live NAC solution (Cisco ISE ERS); Tenable Security Center | **Implemented, not live-validated in this environment** | code labels and `doctor` output |
 | Live ticketing system, EDR, patch manager | **Not implemented; simulated defaults** | `connectors/` labels |
 
 ## Phase 1 — Architecture and reporting (complete)
@@ -53,7 +53,7 @@ keeping the engine's evidence labels truthful.
 | Workstream | Effort | Depends on | Acceptance criteria |
 |---|---|---|---|
 | ServiceNow/Jira ticketing adapter | M | ticket payload contract | Create/update/reject ticket; idempotency key; live flag and API errors recorded |
-| Cisco ISE ERS live validation | M | lab ISE + ANC policy | Quarantine/restore against a lab endpoint; `simulated=False`; blocked/MAC behavior unchanged |
+| NAC solution (Cisco ISE ERS) live validation | M | lab NAC + quarantine policy | Quarantine/restore against a lab endpoint; `simulated=False`; blocked/MAC behavior unchanged |
 | Patch manager adapter (Intune/SCCM/Ansible/Tanium) | L | chosen product API | Submit job with target version; poll status; never report `patched` without scanner verification |
 | EDR/AV control-plane adapter | L | EDR API scope | Presence/version/feed/mode/infection per asset; explicit unknown for missing fields |
 | Tenable Security Center live validation | M | SC appliance | Same CVE/asset/verification behavior as VM; adapter note updated |

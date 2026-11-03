@@ -201,7 +201,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         print(f"Source choice:  {args.source}")
         print(f"VM configured:  {settings.vm.configured}")
         print(f"SC configured:  {settings.sc.configured}")
-        print(f"ISE configured: {settings.ise.configured}")
+        print(f"NAC solution configured (Cisco ISE ERS): {settings.ise.configured}")
         health = payload.get("health") or {}
         if health.get("ok"):
             print(f"\nProduct:        {health.get('product')}")
