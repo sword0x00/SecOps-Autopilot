@@ -25,7 +25,6 @@ STATUS_CONTAINMENT_EXECUTED = "containment_executed"
 STATUS_AWAITING_VERIFICATION = "awaiting_verification"
 STATUS_VERIFIED = "verified_remediated"
 STATUS_VERIFICATION_OPEN = "verification_open"
-STATUS_ESCALATED = "escalated"
 STATUS_RESTORED = "restored"
 STATUS_COMPLETE = "complete"
 
@@ -34,7 +33,6 @@ TERMINAL_STATUSES = {
     STATUS_REMEDIATION_REJECTED,
     STATUS_RESTORED,
     STATUS_COMPLETE,
-    STATUS_ESCALATED,
 }
 
 GATE_TICKET = "ticket"

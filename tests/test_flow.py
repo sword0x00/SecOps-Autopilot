@@ -137,7 +137,7 @@ class FlowTest(unittest.TestCase):
         with self.assertRaises(StateError):
             self.pipeline.approve(run.run_id, GATE_RESTORE, "SecOps Lead")
 
-    def test_kri_07_detected_forces_isolation_and_escalation(self):
+    def test_kri_07_detected_forces_isolation_without_verification_escalation(self):
         status_file = self.settings.state_dir / "edr_status.json"
         status_file.parent.mkdir(parents=True, exist_ok=True)
         status_file.write_text(
@@ -173,11 +173,13 @@ class FlowTest(unittest.TestCase):
         run = self.pipeline.approve(run.run_id, GATE_REMEDIATION, "Infosec Approver")
         run = self.pipeline.approve(run.run_id, GATE_CONTAINMENT, "SecOps Lead")
         run = self.pipeline.verify(run.run_id)
-        self.assertEqual(run.status, "escalated")
-        with self.assertRaises(StateError):
-            self.pipeline.approve(run.run_id, GATE_RESTORE, "SecOps Lead")
+        self.assertEqual(run.status, "verified_remediated")
+        self.assertEqual(run.verification["infection_status"], "infected")
+        self.assertFalse(any(event["kind"] == "edr_infection" for event in run.events))
+        run = self.pipeline.approve(run.run_id, GATE_RESTORE, "SecOps Lead")
+        self.assertEqual(run.status, "restored")
 
-    def test_edr_infection_escalates_and_blocks_restore(self):
+    def test_edr_infection_is_recorded_without_escalation(self):
         self.source.after = []
         run = self._advance_to_verification()
         status_file = self.settings.state_dir / "edr_status.json"
@@ -200,13 +202,13 @@ class FlowTest(unittest.TestCase):
             encoding="utf-8",
         )
         run = self.pipeline.verify(run.run_id)
-        self.assertEqual(run.status, "escalated")
+        self.assertEqual(run.status, "verified_remediated")
         self.assertEqual(run.verification["infection_status"], "infected")
-        self.assertTrue(
+        self.assertFalse(
             any(event["kind"] == "edr_infection" for event in run.events)
         )
-        with self.assertRaises(StateError):
-            self.pipeline.approve(run.run_id, GATE_RESTORE, "SecOps Lead")
+        run = self.pipeline.approve(run.run_id, GATE_RESTORE, "SecOps Lead")
+        self.assertEqual(run.status, "restored")
 
     def test_new_asset_during_verification_keeps_the_run_open(self):
         from tests.helpers import make_finding

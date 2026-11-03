@@ -21,14 +21,14 @@ would not survive a second vulnerability class or a production review.
 | # | Gap in the previous design | Consequence | Change in this design |
 |---|---|---|---|
 | 1 | One 1,479-line `Pipeline` method orchestrated every stage | Stage boundaries existed only in comments; output, retries, and audit records drifted | Explicit `StageContract` records; read-only and state-changing stages live in separate modules |
-| 2 | No stage-8 execution connector | The engine could plan a patch but had no record that an approved patch job was submitted | `PatchConnector` + `SimulatedPatchManager`; `approve --gate patch`; jobs labeled simulated, `touched_host=false` |
+| 2 | No stage-8 execution connector | The engine could plan a patch but had no record that a Human-Approved patch job was submitted | `PatchConnector` + `SimulatedPatchManager`; `approve --gate patch`; jobs labeled simulated, `touched_host=false` |
 | 3 | KRI-05 was hard-coded to MS17-010 | Every non-Windows CVE produced `not_applicable`; PHP/Node.js risk was invisible | KRI-05 is target-CVE generic; KRI-08 compares runtime CPE versions to advisory fixed versions; KRI-09 assesses external exposure |
 | 4 | Intake accepted only a CVE and Tenable data | No fixed versions, support status, or vendor mitigations; no way to say which source was verified | Advisory JSON with provenance; version-range evaluation; explicit source conflicts; fixed versions flow into the plan and patch stage |
 | 5 | Per-stage evidence existed but no single management view | Executives had to read raw JSON to find the numbers | Every run writes `executive-summary.md`; the live batch writes one consolidated report in Markdown, HTML, and PDF |
 
 The safety model was preserved and extended: read-only until a gate, plan SHA
-binding, no invented values, fresh-read verification, restore after a separate
-approval.
+binding, no invented values, fresh-read verification, restore after separate Human
+Approval.
 
 ## 2. Layer map
 
@@ -61,12 +61,12 @@ approval.
                                             |
    +----------------------------------------v----------------------------------------+
    | Governance                                                                      |
-   |  pipeline.py · stages/ticketing.py · plan SHA-256 · approval ledger             |
-   |  Gates: ticket -> remediation -> containment / patch -> restore                 |
+   |  pipeline.py · stages/ticketing.py · plan SHA-256 · Human Approval ledger       |
+   |  Human Approval conditions: ticket -> remediation -> containment / patch -> restore |
    +----------------------------------------+----------------------------------------+
                                             |
    +----------------------------------------v----------------------------------------+
-   | Execution (state-changing, approval-gated)                                      |
+   | Execution (state-changing, Human-Approval-gated)                                |
    |  stages/containment.py (NAC) · stages/patch_execution.py (patch manager)         |
    +----------------------------------------+----------------------------------------+
                                             |
@@ -84,7 +84,7 @@ approval.
 ## 3. Stage contracts
 
 Every stage declares what it consumes, what it produces, whether it can change
-state, whether it is retryable, and which approval gate authorizes it. The
+state, whether it is retryable, and which Human Approval condition authorizes it. The
 contract is written into the stage record, so the evidence package shows the
 authorization boundary rather than relying on a reviewer to remember it.
 
@@ -97,7 +97,7 @@ authorization boundary rather than relying on a reviewer to remember it.
 | 4 Risk scoring | `kri_scoring` | read | — | 0–100 score, tier, drivers, unknown components |
 | 5 Remediation planning | `remediation_planning` | read | — | patch path, target versions, controls, workarounds |
 | 6 Ticket creation | `ticket` | state | `ticket` | ticketing-system ticket bound to plan SHA-256 |
-| 6 Infosec approval | `remediation_approval` | state | `remediation` | approval or rejection ledger entry |
+| 6 Infosec Human Approval | `remediation_approval` | state | `remediation` | Human Approval or rejection ledger entry |
 | 7 Containment | `containment` | state | `containment` | NAC event or blocked identity record |
 | 8 Remediation execution | `patch_execution` | state | `patch` | patch jobs, target versions, simulation flag |
 | 9 Verification | `verification` | read | — | fresh-read result and infection status |
@@ -106,7 +106,7 @@ authorization boundary rather than relying on a reviewer to remember it.
 
 Methodology stages 9 and 10 in the source document are merged as
 **Verification and recovery**: verification is the fresh read, recovery is the
-separately approved restore. They are intentionally not one atomic action,
+separately Human-Approved restore. They are intentionally not one atomic action,
 because a green verification result must not automatically release a quarantined
 host.
 
@@ -115,9 +115,9 @@ cannot silently diverge from the contracts.
 
 Read-only means "cannot change an asset or control-plane state." A read-only
 stage can still declare non-destructive side effects. `evidence` writes report
-files; verification records an infection event and blocks restore. Those are
-records or escalations, not containment or remediation; the contract lists them
-in `side_effects`.
+files; verification records scan freshness and unknown results. Those are
+records, not containment or remediation; the contract lists them in
+`side_effects`.
 
 ## 4. Data model and provenance
 
@@ -161,29 +161,28 @@ includes the contract id, methodology stage, kind, gate, attempt, duration, sour
 calls (last 50), unknowns, errors, and a SHA-256 manifest entry. `run.json` is the
 replayable state; reports are generated from the same records.
 
-## 5. State machine and approvals
+## 5. State machine and Human Approval conditions
 
 ```
 initialized
   -> awaiting_ticket_approval        (plan built, read-only)
-  -> awaiting_remediation_approval   (ticket created; gate: ticket)
-  -> approved_for_containment        (infosec approved; gate: remediation)
-       -> containment executed       (gate: containment; optional)
-       -> patch jobs submitted       (gate: patch; optional but recorded)
+  -> awaiting_remediation_approval   (ticket created; Human Approval: ticket)
+  -> approved_for_containment        (Human Approval: remediation)
+       -> containment executed       (Human Approval: containment; optional)
+       -> patch jobs submitted       (Human Approval: patch; optional but recorded)
        -> awaiting_verification
   -> verified_remediated             (fresh scanner read; all assets clear)
-       -> restored                   (gate: restore)
+       -> restored                   (Human Approval: restore)
   -> verification_open               (still affected, unknown, or new exposure)
-  -> escalated                       (EDR infection; restore blocked)
   -> remediation_rejected            (terminal for this run)
 ```
 
-- A plan modification invalidates every prior approval because each approval
-  stores the plan SHA-256.
-- Ticket creation, infosec approval, containment, patch execution, and restore
-  are separate gates with named approvers.
-- KRI-07 forces isolation and blocks restore even if the scanner later reports
-  the CVE as gone.
+- A plan modification invalidates every prior Human Approval because each Human
+  Approval stores the plan SHA-256.
+- Ticket creation, infosec Human Approval, containment, patch execution, and
+  restore are separate Human Approval conditions with named approvers.
+- KRI-07 forces isolation; a restore still requires verified remediation and
+  Human Approval even if the scanner reports the CVE as gone.
 - A rejected remediation blocks containment and patch execution.
 
 ## 6. Error handling
@@ -236,7 +235,7 @@ live batch runner and the unit/integration suite:
    resulting run state and stage contracts.
 4. It writes one consolidated management report in **Markdown, HTML, and PDF**,
    plus one `executive-summary.md` per run.
-5. Unit/integration tests use deterministic fixtures for the approval chain,
+5. Unit/integration tests use deterministic fixtures for the Human Approval chain,
    KRI logic, advisory ranges, stale-scan handling, evidence integrity, and
    executive-summary generation.
 
@@ -275,7 +274,7 @@ Recommended metrics, all derivable from the run records:
 - percentage of assets with a verified fixed version (KRI-08);
 - containment block rate due to missing MAC/identity;
 - verification freshness (scan timestamps vs. remediation time);
-- approval latency by gate;
+- Human Approval latency by condition;
 - evidence integrity failures;
 - false-clear rate: KRI unknown treated as clear (target: zero).
 

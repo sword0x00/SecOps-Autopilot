@@ -16,22 +16,22 @@ It does **not** create a ticket, contact the NAC, submit a patch job, restart a
 host, or change an endpoint. The run stops at `awaiting_ticket_approval` and
 prints the next command.
 
-## Approval gates
+## Human Approval conditions
 
-| Gate | What it authorizes | Preconditions |
+| Human Approval condition | What it authorizes | Preconditions |
 |---|---|---|
-| `ticket` | Create the ticketing-system ticket | A completed plan and an approver name |
-| `remediation` | Infosec approval of the plan; enables containment and patch submission | An existing ticket |
-| `containment` | Cisco ISE ANC quarantine | Remediation approved |
-| `patch` | Submit patch jobs to the patch-management connector | Remediation approved; a verified target version per asset |
-| `restore` | Return verified-remediated assets to production | Fresh verification shows remediation; no infection; a separate approver |
+| `ticket` | Create the ticketing-system ticket | A completed plan and a named human approver |
+| `remediation` | Infosec Human Approval of the plan; enables containment and patch submission | An existing ticket |
+| `containment` | Cisco ISE ANC quarantine | Remediation Human Approval recorded |
+| `patch` | Submit patch jobs to the patch-management connector | Remediation Human Approval recorded; a verified target version per asset |
+| `restore` | Return verified-remediated assets to production | Fresh verification shows remediation; a separate named approver |
 
-A rejection at the remediation gate moves the run to `remediation_rejected` and
+A rejection at the remediation Human Approval condition moves the run to `remediation_rejected` and
 makes containment and patch submission impossible. There is no override flag.
 
 ## Plan integrity
 
-The remediation plan is canonicalized and hashed. Every approval stores:
+The remediation plan is canonicalized and hashed. Every Human Approval stores:
 
 - the gate and decision,
 - the approver and timestamp,
@@ -39,7 +39,7 @@ The remediation plan is canonicalized and hashed. Every approval stores:
 - the action taken and its result reference.
 
 Before a ticket, containment, patch submission, or restore action, the engine
-recomputes the plan hash. A modified plan invalidates the approval and raises an
+recomputes the plan hash. A modified plan invalidates the Human Approval and raises an
 error. This is covered by a test.
 
 ## No invented facts
@@ -62,7 +62,7 @@ runtime branch into a patch target.
 
 ## Containment safety
 
-- Only assets marked `containment_recommended` in the approved plan are touched.
+- Only assets marked `containment_recommended` in the Human-Approved plan are touched.
 - An asset without a MAC address is recorded as `blocked`. ISE ANC cannot
   identify it; a human must contain it manually or enrich the asset identity.
 - The simulated ISE adapter writes only to `.state/nac.json`.
@@ -71,11 +71,11 @@ runtime branch into a patch target.
   and records `validated: false` because it has not been exercised against a live
   ISE deployment here.
 - Restore only applies to assets whose fresh Tenable query no longer reports the
-  CVE and whose EDR status is not `infected`.
+  CVE.
 
 ## Patch execution safety
 
-- Jobs are built only for assets on the approved `patch` path with a target
+- Jobs are built only for assets on the Human-Approved `patch` path with a target
   version supplied by the advisory for that runtime branch.
 - An asset with no verified target version is recorded in `skipped` with the
   reason; no job is submitted.
@@ -131,10 +131,10 @@ mismatches, missing files, and unlisted files.
 - Confirm the Tenable tenant and asset scope before running.
 - Keep the `.env` file out of backups that are not access-controlled.
 - Review the plan, compensating controls, target versions, and unknowns before
-  approving.
+  granting Human Approval.
 - Treat the simulated ticketing/NAC/EDR/patch records as a demonstration of the
   control flow, not as production actions.
 - Confirm that a patch target is correct for the asset's runtime branch before
-  approving the patch gate; the engine will not invent one.
+  granting Human Approval for the patch condition; the engine will not invent one.
 - For a real ISE deployment, test the ANC policy and the restore path in a lab
   first; the adapter is marked unvalidated.

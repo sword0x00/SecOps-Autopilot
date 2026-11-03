@@ -1,6 +1,6 @@
 # SecOps Autopilot
 
-**Carry a vulnerability from a scanner finding to an approval-gated containment,
+**Carry a vulnerability from a scanner finding to a Human-Approval-gated containment,
 a recorded remediation submission, and a verified, evidenced fix.**
 
 SecOps teams own the gap between "a CVE affects us" and "the fix is verified on
@@ -9,8 +9,8 @@ scanner, the asset inventory, the EDR console, the patch-management portal, the 
 ticketing system — then chasing owners by hand.
 
 SecOps Autopilot automates that chain for **Tenable Vulnerability Management** and
-**Tenable Security Center**, stops at every state change for a recorded human
-approval, and produces an audit-ready evidence package as it runs. It is an
+**Tenable Security Center**, stops at every state change for a recorded Human
+Approval, and produces an audit-ready evidence package as it runs. It is an
 orchestration layer, not another scanner.
 
 ## What it does
@@ -18,7 +18,7 @@ orchestration layer, not another scanner.
 The engine implements the ten operating stages from the SecOps Autopilot
 methodology. Stage 9 and stage 10 of the source document are merged as
 **Verification and recovery**: verification is a fresh read; restore is a
-separate approval.
+separate Human Approval.
 
 | # | Stage | What happens | Output |
 |---|---|---|---|
@@ -27,10 +27,10 @@ separate approval.
 | 3 | Control check | Check agent presence, version/feed where exposed, EDR/AV/application-control/NAC/patch-agent posture where an inventory or connector exists | Per-asset control posture with explicit unknowns |
 | 4 | KRI register + scoring | Detect KRI-01 … KRI-09 per asset, then rank by severity, exploit maturity, exposure, control gap, and asset criticality | Per-asset KRI matrix plus a transparent 0–100 risk score |
 | 5 | Remediation | Select the patch path, advisory fixed version per runtime branch, and compensating controls matched to the exploit mechanism | Plan with target versions and unverified controls called out |
-| 6 | Ticket + approval | Create the ticketing-system ticket and record infosec approval | Ticket bound to the plan SHA-256 |
+| 6 | Ticket + Human Approval | Create the ticketing-system ticket and record infosec Human Approval | Ticket bound to the plan SHA-256 |
 | 7 | Containment | Quarantine non-compliant devices via Cisco ISE ANC | Isolation event, or a blocked record when the MAC is unknown |
-| 8 | Remediation execution | Submit approved patch jobs with the per-asset target version through the patch connector | Job record; simulated by default, never a claim that a host was patched |
-| 9 | Verification and recovery | Re-query the scanner after remediation; restore only verified, uninfected devices after a separate approval | Verified fix, open items, or EDR escalation |
+| 8 | Remediation execution | Submit Human-Approved patch jobs with the per-asset target version through the patch connector | Job record; simulated by default, never a claim that a host was patched |
+| 9 | Verification and recovery | Re-query the scanner after remediation; restore only verified devices after a separate Human Approval | Verified fix, open items, or restore events |
 | 10 | Evidence | Emit the full decision and action record | Markdown + HTML report and SHA-256 manifest |
 
 ## What, why, and value
@@ -39,7 +39,7 @@ separate approval.
 
 SecOps Autopilot is an orchestration layer for the work between a scanner
 finding and a verified fix: it normalizes the vulnerability, resolves affected
-assets, reads control posture, evaluates KRIs, builds an approval-gated
+assets, reads control posture, evaluates KRIs, builds a Human-Approval-gated
 remediation plan, records containment and patch submission, verifies the result
 with a fresh scan, and writes the evidence package.
 
@@ -50,7 +50,7 @@ control plane that makes those tools produce one defensible record.
 
 A vulnerability is not closed when a ticket is opened or a patch job is queued.
 It is closed when a fresh scan confirms the finding is gone on every affected
-asset, the control exceptions are recorded, and an approver can defend every
+asset, the control exceptions are recorded, and a named human approver can defend every
 state change. Doing that by hand across a scanner, an asset inventory, an EDR,
 a ticketing system, a NAC, and a patch manager is slow, inconsistent, and hard
 to audit. The engine makes the sequence explicit and the unknowns visible.
@@ -101,7 +101,7 @@ Replace the assumptions with your own before using it for a budget decision.
   year-1 net $127,500, payback ~3.9 months.
 
 The financial return is only one part. The operating value is a consistent KRI
-method, an approval record for every consequential action, explicit unknowns
+method, a Human Approval record for every consequential action, explicit unknowns
 instead of guessed values, a fresh-scan verification rule, and an evidence
 manifest that answers "what did we do, when, and why?" without reconstructing it
 from six consoles.
@@ -113,7 +113,7 @@ follow-up discipline; it does not assume additional analyst headcount.
 ## Stage contracts
 
 Every stage declares its inputs, outputs, read-only/state-changing nature, and
-approval gate. The contract is written into the evidence record, so the report
+Human Approval condition. The contract is written into the evidence record, so the report
 shows the authorization boundary instead of relying on a reviewer to remember it.
 
 ```bash
@@ -121,7 +121,7 @@ secops stages
 ```
 
 Read-only stages run unattended. State-changing stages are reachable only through
-`secops approve` with an explicit gate and a non-empty approver.
+`secops approve` with an explicit Human Approval condition and a named approver.
 
 ## KRI coverage
 
@@ -135,7 +135,7 @@ The engine evaluates nine named indicators. `unknown` is never treated as clear.
 | KRI-04 | Detect-only mode | AV/EDR/app-control mode | Compensation / ticket |
 | KRI-05 | Unresolved exploitable vulnerability | Target CVE finding + finding state + exploit/patch signals | Patch / containment candidate |
 | KRI-06 | NAC non-compliant posture | ISE/control-inventory posture | Containment candidate |
-| KRI-07 | Active compromise | EDR infection or behavioral match | Isolate / infection escalation / no restore |
+| KRI-07 | Active compromise | EDR infection or behavioral match | Isolate / containment required / no automatic restore |
 | KRI-08 | Vulnerable runtime version | CPE runtime version vs advisory affected range/fixed version | Exact target version / compensation if unsupported |
 | KRI-09 | Externally exposed vulnerable service | Web port/service or asset exposure score | WAF/IPS or containment priority |
 
@@ -151,7 +151,7 @@ when neither is available.
 |---|---|---|
 | Tenable Vulnerability Management | **Live** | Validated against a Tenable lab tenant: CVE-scoped queries, per-asset export, asset detail, agent scope probe |
 | Tenable Security Center | Adapter implemented | Documented `/rest` API shape, not live-tested in this environment |
-| Ticketing system | Simulated | Tickets in `.state/ticketing.json`; the ticket/approval flow is real in the run record |
+| Ticketing system | Simulated | Tickets in `.state/ticketing.json`; the ticket/Human Approval flow is real in the run record |
 | Cisco ISE NAC | Simulated by default | Real ERS ANC adapter activates when `ISE_URL`, `ISE_USERNAME`, and `ISE_PASSWORD` are set |
 | EDR | Simulated | Returns `unknown` unless a status fixture or a real connector is supplied; never claims "clean" |
 | Patch management | Simulated | Jobs in `.state/patch.json`; `touched_host=false`; never reports `patched` |
@@ -283,7 +283,7 @@ secops run --cve CVE-2017-0144
 
 This performs intake, exposure, control check, the KRI register, risk scoring, and
 remediation planning. It creates **no** ticket, **no** containment, **no** patch
-job, and **no** external state change. The run stops and prints the first approval
+job, and **no** external state change. The run stops and prints the first Human Approval
 command and the per-asset KRI register.
 
 To attach advisory fixed versions and mitigations:
@@ -301,7 +301,7 @@ marked verified, the report says so.
 ```bash
 secops approve --run <RUN_ID> --gate ticket --approver "Your Name"
 secops approve --run <RUN_ID> --gate remediation --approver "Infosec Approver" \
-  --note "Approved for containment and patch submission"
+  --note "Human-Approved for containment and patch submission"
 secops approve --run <RUN_ID> --gate containment --approver "SecOps Lead"
 secops approve --run <RUN_ID> --gate patch --approver "Patch Approver"
 secops verify --run <RUN_ID>
@@ -309,8 +309,9 @@ secops approve --run <RUN_ID> --gate restore --approver "SecOps Lead"
 secops report --run <RUN_ID> --format html --verify
 ```
 
-Containment and patch execution both require the remediation approval. Restore
-requires verified remediation and a separate approval. A rejected remediation
+Containment and patch execution both require the remediation Human Approval.
+Restore requires verified remediation and a separate Human Approval. A rejected
+remediation
 never executes containment or patch submission. A patch job without a verified
 target version is skipped, not guessed.
 
@@ -329,7 +330,7 @@ inferred. See `examples/README.md` for the schema.
 
 ```
 runs/<run-id>/
-  run.json                 complete run state: records, approvals, events
+  run.json                 complete run state: records, Human Approvals, events
   report.md                human-readable evidence report
   report.html              self-contained, printable report
   executive-summary.md     management one-pager generated on every run
@@ -347,7 +348,7 @@ secops evidence --run <RUN_ID> --verify-only
 ```
 
 The report includes a "What this run did not do" section: no endpoint execution,
-no unapproved containment, no patch delivery claim, no invented owner or control
+no containment without Human Approval, no patch delivery claim, no invented owner or control
 state.
 
 ## Architecture
@@ -360,19 +361,17 @@ flowchart TD
     D --> E[KRI register<br/>KRI-01 .. KRI-09]
     E --> E2[KRI risk score]
     E2 --> F[Remediation plan<br/>target versions + controls]
-    F --> G{Approval: ticket}
-    G -->|approved| H{Approval: remediation}
-    H -->|approved| I[Containment<br/>ISE ANC]
-    H -->|approved| P[Patch execution<br/>patch connector]
+    F --> G{Human Approval: ticket}
+    G -->|Human-Approved| H{Human Approval: remediation}
+    H -->|Human-Approved| I[Containment<br/>ISE ANC]
+    H -->|Human-Approved| P[Patch execution<br/>patch connector]
     I --> V[Verification<br/>fresh scanner read]
     P --> V
-    V -->|remediated| K{Approval: restore}
+    V -->|remediated| K{Human Approval: restore}
     V -->|still affected| L[Keep isolation<br/>escalate]
-    V -->|EDR infected| M[Infection escalation]
-    K -->|approved| N[Restore]
+    K -->|Human-Approved| N[Restore]
     V --> O[Evidence manifest]
     L --> O
-    M --> O
     N --> O
 ```
 
@@ -392,18 +391,20 @@ for the gap analysis, contracts, state machine, and error model.
 
 - **Read-only by default.** The pipeline performs no state change before the
   ticket gate.
-- **Plan integrity.** Every approval records the remediation plan's SHA-256;
-  changing the plan invalidates the approval.
-- **Five gates.** Ticket, infosec remediation, containment, patch execution, and
-  restore are separate approvals. Containment and patch execution require the
-  remediation approval; restore requires fresh verification.
+- **Plan integrity.** Every Human Approval records the remediation plan's
+  SHA-256; changing the plan invalidates the Human Approval.
+- **Five Human Approval conditions.** Ticket, infosec remediation, containment,
+  patch execution, and restore are separate Human Approval conditions.
+  Containment and patch execution require the remediation Human Approval;
+  restore requires fresh verification.
 - **No MAC means no NAC action.** ISE ANC keys on a MAC address. An asset without
   one is recorded as `blocked`; the engine does not guess an identity.
 - **No invented patch target.** A patch job is submitted only when the advisory
   (or scanner evidence) names a fixed version for that asset's branch. Otherwise
   the job is skipped with a reason.
-- **A patch job is not a fix.** Verification is a fresh scanner read plus an EDR
-  infection check. A stale scan or a submitted job is not remediation evidence.
+- **A patch job is not a fix.** Verification is a fresh scanner read; EDR
+  infection status is recorded as evidence. A stale scan or a submitted job is
+  not remediation evidence.
   An absent finding is accepted only when `last_scan` is within
   `SECOPS_VERIFICATION_MAX_SCAN_AGE_HOURS` (default 72h); otherwise it is
   `unknown` and the run stays open.
@@ -462,7 +463,7 @@ python3 -m unittest discover -s tests -v    # 62 tests
 ```
 
 The unit/integration suite covers live-adapter parsing, CVE filtering, KRI math,
-the full approval chain, the blocked-containment branch, verification, plan
+the full Human Approval chain, the blocked-containment branch, verification, plan
 tampering, manifest integrity, credential redaction, stage contracts, advisory
 version ranges, patch idempotency, and executive-summary generation.
 

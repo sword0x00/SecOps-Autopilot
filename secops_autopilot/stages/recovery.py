@@ -1,10 +1,10 @@
 """Stage 9/10 — approved restore after verification.
 
 Recovery is deliberately narrower than verification. Only an asset with a
-``remediated`` verification result and no infection signal is eligible. A new
-exposure during verification keeps the run open even if every original asset was
-restored. Restore is a separate approval gate, not an automatic consequence of a
-green verification result.
+``remediated`` verification result is eligible. A new exposure during
+verification keeps the run open even if every original asset was restored.
+Restore is a separate Human Approval condition, not an automatic consequence of
+a green verification result.
 """
 
 from __future__ import annotations
@@ -14,7 +14,6 @@ from typing import Any
 from ..errors import ConnectorError, StateError
 from ..models import (
     GATE_RESTORE,
-    STATUS_ESCALATED,
     STATUS_RESTORED,
     STATUS_VERIFICATION_OPEN,
     STATUS_VERIFIED,
@@ -25,7 +24,6 @@ from .context import StageContext
 ELIGIBLE_FOR_RESTORE = {
     STATUS_VERIFIED,
     STATUS_VERIFICATION_OPEN,
-    STATUS_ESCALATED,
 }
 
 
@@ -40,7 +38,6 @@ def execute_restore(ctx: StageContext, approver: str, note: str):
         item.get("asset_uuid")
         for item in verification.get("assets") or []
         if item.get("status") == "remediated"
-        and item.get("infection_status") != "infected"
     }
     isolated = [
         event

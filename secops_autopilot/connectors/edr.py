@@ -1,4 +1,4 @@
-"""EDR connector used for the infection branch.
+"""EDR connector used for the infection status check.
 
 No EDR tenant was provided. The simulator therefore returns ``unknown`` unless
 an explicit fixture (``.state/edr_status.json``) supplies a status. It never

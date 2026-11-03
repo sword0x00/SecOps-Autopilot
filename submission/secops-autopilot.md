@@ -87,18 +87,20 @@ posture, active compromise, vulnerable runtime version, and externally exposed
 vulnerable service. Every result is `detected`, `not_detected` (clear),
 `unknown`, or `not_applicable`, with evidence. `unknown` is never treated as
 clear. KRI-06 and KRI-07 route to containment regardless of the numeric score;
-KRI-07 forces isolation and blocks restore. KRI-08 selects the exact
+KRI-07 forces isolation; restore still requires verified remediation and Human
+Approval. KRI-08 selects the exact
 advisory fixed version from CPE; KRI-09 prioritizes web-exposed assets.
 Thresholds and scope live in an editable JSON catalog.
 
 ## Safety properties
 
-- Read-only until the first approval. `run` never creates a ticket, touches the
+- Read-only until the first Human Approval. `run` never creates a ticket, touches the
   NAC, or submits a patch job.
-- Five approval gates: ticket creation, infosec remediation approval, containment,
-  patch submission, and restore. Restore requires verified remediation.
-- Every approval binds to the remediation plan's SHA-256. A changed plan
-  invalidates the approval.
+- Five Human Approval conditions: ticket creation, infosec remediation Human
+  Approval, containment, patch submission, and restore. Restore requires
+  verified remediation.
+- Every Human Approval binds to the remediation plan's SHA-256. A changed plan
+  invalidates the Human Approval.
 - An asset without a MAC address is recorded as blocked for NAC containment, not
   guessed.
 - A patch job is only submitted when the advisory names a fixed version for the
@@ -107,8 +109,7 @@ Thresholds and scope live in an editable JSON catalog.
   state, AV state, patch prerequisites, and rollback stay unknown with a reason.
   The engine never invents them.
 - Verification is a fresh Tenable query. A stale scan or a disappeared asset is
-  not treated as a fix. If EDR reports an infection, the asset is not restored
-  and the infection escalation is recorded.
+  not treated as a fix. EDR infection status is recorded as evidence.
 
 ## Quickstart
 

@@ -16,9 +16,9 @@ re-implementing scanner queries or containment actions in ad-hoc shell.
 
 These are not negotiable, and they hold at every stage:
 
-1. **No state change without approval.** Ticket creation, NAC quarantine, patch
-   submission, and VLAN restore require a human approval recorded in the run.
-   Read and plan freely; act only on approval.
+1. **No state change without Human Approval.** Ticket creation, NAC quarantine,
+   patch submission, and VLAN restore require Human Approval recorded in the run.
+   Read and plan freely; act only on Human Approval.
 2. **Record what you did not learn.** Unknown owner, agent version, runtime
    version, EDR state, patch target, or feed age is written as `unknown` with a
    reason. A guessed value in an audit record is worse than a gap.
@@ -26,7 +26,8 @@ These are not negotiable, and they hold at every stage:
    contract. Stages chain by consuming the previous record, so any run can be
    replayed and audited.
 4. **A patch job is not a fix.** Submission is an execution record. Only a fresh
-   scanner read plus an EDR infection check verifies remediation.
+   scanner read verifies remediation; EDR infection status is recorded as
+   evidence.
 5. **Evidence is the deliverable.** The fix matters, but the defensible record of
    how the fix was verified is what the team keeps.
 
@@ -54,9 +55,8 @@ secops report --run <RUN_ID> --format html --verify
 ```
 
 Restore is refused unless a fresh scanner query shows the CVE is gone on that
-asset, EDR has not reported an infection, and the asset was actually isolated.
-Patch submission is refused without the remediation approval and a verified
-target version.
+asset and the asset was actually isolated. Patch submission is refused without
+the remediation Human Approval and a verified target version.
 
 ## The pipeline
 
@@ -67,10 +67,10 @@ target version.
 | 3 | Control check | `Pipeline.run` | Per-asset agent/EDR/AV/NAC/patch posture and unknowns |
 | 4 | KRI register + scoring | `Pipeline.run` | Per-asset KRI-01 … KRI-09 matrix plus transparent 0–100 score |
 | 5 | Remediation | `Pipeline.run` | Patch path, target versions, compensating controls, workarounds |
-| 6 | Ticket | `approve --gate ticket` then `--gate remediation` | Ticket and approval ledger |
+| 6 | Ticket | `approve --gate ticket` then `--gate remediation` | Ticket and Human Approval ledger |
 | 7 | Containment | `approve --gate containment` | NAC event or blocked record |
 | 8 | Remediation execution | `approve --gate patch` | Patch jobs with per-asset target versions; simulated by default |
-| 9 | Verification + recovery | `verify` then `approve --gate restore` | Verified fix, open items, or infection escalation; restore events |
+| 9 | Verification + recovery | `verify` then `approve --gate restore` | Verified fix, open items, or restore events |
 | 10 | Evidence | `report` / every stage | JSON, Markdown, HTML, SHA-256 manifest |
 
 Read-only stages 1–5 and the verification read run unattended. Ticket creation,
@@ -104,7 +104,7 @@ mitigations, and `--kri-catalog` to customize thresholds.
    - the patch path, target versions, and compensating controls,
    - the unknowns and why they are unknown,
    - containment candidates and any blocked identities.
-3. Ask for explicit approval for the first state change. Do not create a ticket,
+3. Ask for explicit Human Approval for the first state change. Do not create a ticket,
    contact the NAC, or submit a patch job without it.
 4. After each gate, summarize what changed and what the next gate authorizes.
 5. If verification is available, run it; do not call a patch job or a stale scan
@@ -122,7 +122,7 @@ date window, confirm the tenant scope, or supply a scanner export.
 - Claim a host is clean because no EDR signal exists.
 - Claim a patch job or a ticket is a verified fix.
 - Treat a stale scan as evidence of remediation.
-- Restore an infected or unverified isolated host.
+- Restore an unverified isolated host.
 
 ## Configuration
 
@@ -146,7 +146,7 @@ date window, confirm the tenant scope, or supply a scanner export.
 - `docs/tenable-integration.md` — endpoints, filters, scope limits.
 - `docs/kri-catalog.md` — KRI rules and examples.
 - `docs/kri-model.md` — scoring formula and containment policy.
-- `docs/security-and-safety.md` — approval and evidence model.
+- `docs/security-and-safety.md` — Human Approval and evidence model.
 - `.claude/agents/secops-autopilot.md` — orchestrator agent.
 - `playbooks/vuln-to-verified-fix.md` — end-to-end workflow.
 

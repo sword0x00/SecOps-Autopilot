@@ -3,8 +3,9 @@
 Verification is a fresh read, not a status-change confirmation. The engine
 re-queries the scanner for the target CVE, matches assets on every identity key
 it has, and records ``remediated`` only when the finding is absent *and* the scan
-is fresh. EDR infection is re-checked; an infection signal escalates and blocks
-recovery. Recovery is a separate approval-gated stage in ``recovery.py``.
+is fresh. EDR infection status is recorded as evidence but does not create a
+separate escalation branch. Recovery is a separate Human Approval-gated stage in
+``recovery.py``.
 """
 
 from __future__ import annotations
@@ -17,7 +18,6 @@ from ..models import (
     STATUS_AWAITING_VERIFICATION,
     STATUS_APPROVED_FOR_CONTAINMENT,
     STATUS_CONTAINMENT_EXECUTED,
-    STATUS_ESCALATED,
     STATUS_RESTORED,
     STATUS_VERIFICATION_OPEN,
     STATUS_VERIFIED,
@@ -176,11 +176,6 @@ def execute_verification(ctx: StageContext):
             and event.get("status") == "isolated"
             for event in run.containment or []
         )
-        if infection == "infected":
-            run.add_event(
-                "edr_infection",
-                f"EDR reports infection on {ref.display_name}; restore is blocked.",
-            )
         if after_affected:
             status = "not_remediated"
         elif scan_fresh is True:
@@ -289,9 +284,7 @@ def execute_verification(ctx: StageContext):
             f"({asset.get('ipv4')})",
         )
 
-    if infection_status == "infected":
-        run.status = STATUS_ESCALATED
-    elif (
+    if (
         remediated_count == len(verification_assets)
         and unknown_count == 0
         and not new_assets

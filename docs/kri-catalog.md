@@ -132,7 +132,8 @@ or `behavioral_matches` is non-empty → `detected`.
 - Unknown status with no behavioral data → `unknown`.
 
 A missing EDR signal is `unknown`, never `clean`. A KRI-07 detection forces the
-remediation path to `isolate`, records an infection event, and blocks restore.
+remediation path to `isolate` and marks the asset for containment; restore still
+requires verified remediation and Human Approval.
 
 ### KRI-08 — Vulnerable runtime version
 
@@ -170,7 +171,7 @@ exposed.
 | KRI-01/02/03/04 | Control-gap evidence; ticket to the endpoint/control owner; compensating controls; score input |
 | KRI-05 | Patch path plus mechanism-matched controls; containment candidate at/above threshold |
 | KRI-06 | Containment candidate regardless of score; ISE/NAC approval gates still apply |
-| KRI-07 | Force `isolate`; infection escalation; restore refused |
+| KRI-07 | Force `isolate`; containment required; restore only after verified remediation and Human Approval |
 | KRI-08 | Exact target version; `compensate`/migration when the branch has no vendor fix |
 | KRI-09 | WAF/IPS/firewall priority; containment candidate when combined with high risk |
 

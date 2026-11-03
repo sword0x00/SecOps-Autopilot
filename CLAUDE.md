@@ -11,10 +11,10 @@ An orchestration layer, not another scanner. It takes an already-identified vuln
 3. **Control check** — confirm agent/EDR/AV presence, versions, feeds, and modes
 4. **KRI register + scoring** — detect KRI-01 … KRI-09 per asset, then rank by real risk, not raw CVSS
 5. **Remediation** — patch path plus compensating controls (IPS/WAF/firewall)
-6. **Ticket** — ticketing-system ticket with owner, evidence, and infosec approval gate
+6. **Ticket** — ticketing-system ticket with owner, evidence, and infosec Human Approval gate
 7. **Containment** — NAC (Cisco ISE) isolates non-compliant devices to a remediation VLAN
-8. **Remediation execution** — approved patch jobs submitted to the patch-management connector
-9. **Verification & recovery** — fresh re-check after patch; restore only verified, uninfected devices; escalate if EDR reports infection
+8. **Remediation execution** — Human-Approved patch jobs submitted to the patch-management connector
+9. **Verification & recovery** — fresh re-check after patch; restore only verified devices after Human Approval
 10. **Evidence** — audit-ready record of every decision and action
 
 ## Layout
@@ -26,7 +26,7 @@ SKILL.md                         entry point for the /secops-autopilot skill
 pyproject.toml                   package + `secops` console script
 secops_autopilot/
   cli.py                         doctor, inventory, run, approve, verify, report, evidence
-  pipeline.py                    thin orchestrator and approval facade
+  pipeline.py                    thin orchestrator and Human Approval facade
   stages/                        explicit stage contracts and stage modules
   intake.py  scoring.py          stage 1 and stage 4 risk-score logic
   advisory.py                    advisory schema, version ranges, provenance
@@ -71,7 +71,7 @@ python3 -m unittest discover -s tests -v
 
 ## Conventions
 
-- **Read-only by default.** Any state-changing action (ticket creation, NAC quarantine, patch submission, restore) requires an explicit approval step. Never auto-execute containment. `secops run` must not create tickets, call the NAC, or submit patch jobs.
+- **Read-only by default.** Any state-changing action (ticket creation, NAC quarantine, patch submission, restore) requires an explicit Human Approval step. Never auto-execute containment. `secops run` must not create tickets, call the NAC, or submit patch jobs.
 - **Stage contracts are runtime data.** Every stage declares inputs, outputs, kind, gate, and idempotency; the record carries the contract. Do not add a state-changing stage without a gate.
 - **A patch job is not a fix.** Patch submission is an execution record. Verification is a fresh scanner read plus an EDR check; a stale scan or queued job is not evidence.
 - **Evidence first.** Every stage writes a structured record under `runs/<run-id>/`; finalization also writes `executive-summary.md`, `report.md`, `report.html`, and the manifest. If it is not recorded, it did not happen.
@@ -85,9 +85,9 @@ python3 -m unittest discover -s tests -v
 
 - Tenable filters: `plugin.attributes.cve.raw` on `/workbenches/vulnerabilities`; export filters use a `filters` object (`{"plugin_id":[...]}`).
 - Agent inventory may be out of API scope; record the 403 reason instead of inferring a version.
-- The KRI register is data-driven from `secops_autopilot/kri_catalog.json`; `unknown` is not `not_detected`. KRI-05 is target-CVE generic. KRI-08 reads runtime product/version from CPE; KRI-09 uses web port/service or AES. KRI-06/KRI-07 route to containment, and KRI-07 forces isolation and blocks restore.
+- The KRI register is data-driven from `secops_autopilot/kri_catalog.json`; `unknown` is not `not_detected`. KRI-05 is target-CVE generic. KRI-08 reads runtime product/version from CPE; KRI-09 uses web port/service or AES. KRI-06/KRI-07 route to containment, and KRI-07 forces isolation; restore still requires verified remediation and Human Approval.
 - Advisory metadata: a `verified` claim requires `provenance.source_url` and `retrieved_at`. The engine does not fetch advisories itself.
-- Approval binds to the remediation plan SHA-256; modifying the plan invalidates it.
+- Human Approval binds to the remediation plan SHA-256; modifying the plan invalidates it.
 - Verification is a fresh read. A missing finding after a rescan is evidence only when `last_scan` is within `SECOPS_VERIFICATION_MAX_SCAN_AGE_HOURS` (default 72h); a stale scan is `unknown`, records a `verification_scan_stale` event, and keeps the run open.
 
 ## Status

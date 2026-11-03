@@ -223,9 +223,9 @@ CONTRACTS: tuple[StageContract, ...] = (
         approval_gate="restore",
         idempotent=True,
         description=(
-            "Restore only assets with a fresh remediation result and no "
-            "infection signal, after the separate restore gate. Everything "
-            "else stays isolated or escalates."
+            "Restore only assets with a fresh remediation result, after the "
+            "separate Human Approval condition. Everything else stays isolated "
+            "or escalates."
         ),
     ),
     StageContract(

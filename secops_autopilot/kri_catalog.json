@@ -129,8 +129,8 @@
       },
       "data_sources": ["EDR connector"],
       "evidence": ["infection_status", "behavioral_matches"],
-      "remediation": "Isolate and do not restore until the infection is cleared.",
-      "action": "Containment; infection escalation; restore blocked.",
+      "remediation": "Isolate; restore only after verified remediation and Human Approval.",
+      "action": "Containment; isolate; restore only after verified remediation and Human Approval.",
       "stage": "verification"
     },
     {
