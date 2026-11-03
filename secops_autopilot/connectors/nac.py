@@ -126,7 +126,7 @@ class CiscoISEAdapter:
             {
                 "Accept": "application/json",
                 "Content-Type": "application/json",
-                "User-Agent": "SecOps-Autopilot/0.1.0 (Cisco ISE ERS)",
+                "User-Agent": "SecOps-Autopilot/0.2.0 (Cisco ISE ERS)",
             }
         )
         self.session.verify = settings.verify_tls

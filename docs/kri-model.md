@@ -3,11 +3,13 @@
 The score answers a different question than CVSS: *how much does this finding
 matter on this asset, with the controls that are actually present?*
 
-> **Two layers, one report.** The *KRI register* (KRI-01 … KRI-07) records named
+> **Two layers, one report.** The *KRI register* (KRI-01 … KRI-09) records named
 > control/exploit indicators per asset with a status and evidence. The *KRI risk
 > score* is the 0–100 ranking number described below. The register is defined in
 > [`kri-catalog.md`](kri-catalog.md); the score uses the control posture and
 > findings, including KRI detections, but remains a separate arithmetic record.
+> KRI-08 (runtime version/fixed version) and KRI-09 (external exposure) inform
+> the plan and priority even when the numeric score is unchanged.
 
 ## Formula
 
@@ -63,7 +65,13 @@ A containment candidate is an asset with **KRI ≥ the isolate threshold (defaul
 - the remediation path is not a plain patch.
 
 The candidate is only a proposal. Containment requires an infosec approval and a
-separate execution approval.
+separate execution approval. Containment and patch execution are both authorized
+by the remediation approval, then recorded under their own gates.
+
+KRI-08/09 do not alter the arithmetic directly. They change the *decision*:
+KRI-08 supplies the exact target version (or the absence of a vendor fix), and
+KRI-09 raises the priority of externally reachable assets. Both remain visible in
+the KRI matrix and the plan.
 
 ## Worked example
 
@@ -102,7 +110,7 @@ middle value. A reader can see exactly which components were excluded.
   flag and the asset's source type are authoritative; a conflict is recorded
   only when the source indicates an agent and `has_agent=false`.
 - AES/ACR values are Tenable scores, not the organization's own business
-  criticality. A CMDB criticality field can be added to `ControlInventory` or a
+  criticality. A asset inventory criticality field can be added to `ControlInventory` or a
   separate scoring input.
 - Control gap treats unknowns as risk. This is conservative; the report makes
   the assumption visible.

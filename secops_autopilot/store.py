@@ -29,7 +29,7 @@ from typing import Any
 from .config import Settings
 from .errors import EvidenceError, StateError
 from .models import STAGE_LABELS, RunState, StageRecord
-from .report import render_html, render_markdown
+from .report import render_executive_summary, render_html, render_markdown
 from .util import (
     atomic_write,
     read_json,
@@ -149,6 +149,9 @@ class RunStore:
         unknowns: list[dict[str, str]] | None = None,
         errors: list[str] | None = None,
         source_calls: list[dict[str, Any]] | None = None,
+        contract: dict[str, Any] | None = None,
+        attempt: int = 1,
+        duration_ms: float | None = None,
     ) -> StageRecord:
         index = len(run.stages) + 1
         rel_path = f"stages/{index:02d}-{safe_name(stage)}.json"
@@ -167,6 +170,9 @@ class RunStore:
             unknowns=unknowns or [],
             errors=errors or [],
             source_calls=(source_calls or [])[-50:],
+            contract=contract or {},
+            attempt=attempt,
+            duration_ms=duration_ms,
         )
         run.stages[stage] = record.to_dict()
         self.save(run)
@@ -179,14 +185,18 @@ class RunStore:
                 "run": "run.json",
                 "markdown": "report.md",
                 "html": "report.html",
+                "executive_summary": "executive-summary.md",
             }
         )
         markdown = self.settings.redact(render_markdown(run))
         html = self.settings.redact(render_html(run))
+        executive = self.settings.redact(render_executive_summary(run))
         atomic_write(directory / "report.md", markdown)
         atomic_write(directory / "report.html", html)
+        atomic_write(directory / "executive-summary.md", executive)
         self._secure(directory / "report.md")
         self._secure(directory / "report.html")
+        self._secure(directory / "executive-summary.md")
         self.save(run)
 
     def finalize(self, run: RunState) -> dict[str, Any]:

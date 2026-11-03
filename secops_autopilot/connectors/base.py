@@ -43,7 +43,7 @@ class VulnerabilitySource(Protocol):
         ...
 
 
-class ITSMConnector(Protocol):
+class TicketingConnector(Protocol):
     name: str
     live: bool
 
@@ -96,7 +96,4 @@ class EDRConnector(Protocol):
     live: bool
 
     def status(self, asset_uuid: str, hostname: str) -> dict[str, Any]:
-        ...
-
-    def handoff(self, asset_uuid: str, hostname: str, evidence: dict[str, Any]) -> dict[str, Any]:
         ...

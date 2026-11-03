@@ -10,9 +10,8 @@ from secops_autopilot.config import (
     TenableVMSettings,
 )
 from secops_autopilot.connectors.edr import SimulatedEDR
-from secops_autopilot.connectors.itsm import SimulatedITSM
+from secops_autopilot.connectors.ticketing import SimulatedTicketingSystem
 from secops_autopilot.connectors.nac import SimulatedNAC
-from secops_autopilot.connectors.siem import SimulatedSIEM
 from secops_autopilot.controls import ControlInventory, OwnerDirectory
 from secops_autopilot.models import AssetRef, Finding, PluginHit
 from secops_autopilot.pipeline import Pipeline
@@ -50,6 +49,7 @@ def make_settings(root: Path) -> Settings:
         isolate_threshold=80.0,
         remediation_vlan="999",
         quarantine_policy="SECOPS-QUARANTINE",
+        verification_max_scan_age_hours=8760.0,
         source_preference="vm",
         secrets=(TEST_ACCESS, TEST_SECRET),
     )
@@ -232,10 +232,9 @@ def make_pipeline(
         settings,
         source,  # type: ignore[arg-type]
         RunStore(settings),
-        SimulatedITSM(settings.state_dir),
+        SimulatedTicketingSystem(settings.state_dir),
         SimulatedNAC(settings.state_dir, vlan=settings.remediation_vlan),
         SimulatedEDR(settings.state_dir),
-        SimulatedSIEM(settings.state_dir),
         owners=OwnerDirectory(owners),
         controls=ControlInventory(controls),
     )

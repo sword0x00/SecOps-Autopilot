@@ -1,0 +1,1061 @@
+{
+  "generated_at": "2026-11-03T21:40:14Z",
+  "scope": {
+    "mode": "focused-latest",
+    "cve_count": 9
+  },
+  "source": {
+    "name": "tenable_vm",
+    "base_url": "https://cloud.tenable.com",
+    "live": true,
+    "date_range_days": 3650
+  },
+  "results": [
+    {
+      "run_id": "20261103T213526Z-CVE-2026-105481-79f20c",
+      "cve": "CVE-2026-105481",
+      "status": "awaiting_ticket_approval",
+      "assets": [
+        {
+          "uuid": "60ff70f2-2b94-40c4-88f5-d846aa5b141a",
+          "hostname": "win11",
+          "ipv4": "172.26.48.31",
+          "mac": "00:50:56:a6:ce:31",
+          "owner": "unknown",
+          "kri_score": 85.5,
+          "kri_tier": "critical"
+        }
+      ],
+      "asset_count": 1,
+      "kri_counts": {
+        "unknown": 7,
+        "detected": 2
+      },
+      "kri_by_id": {
+        "KRI-01": {
+          "unknown": 1
+        },
+        "KRI-02": {
+          "unknown": 1
+        },
+        "KRI-03": {
+          "unknown": 1
+        },
+        "KRI-04": {
+          "unknown": 1
+        },
+        "KRI-05": {
+          "detected": 1
+        },
+        "KRI-06": {
+          "unknown": 1
+        },
+        "KRI-07": {
+          "unknown": 1
+        },
+        "KRI-08": {
+          "unknown": 1
+        },
+        "KRI-09": {
+          "detected": 1
+        }
+      },
+      "plan_paths": {
+        "60ff70f2-2b94-40c4-88f5-d846aa5b141a": "patch"
+      },
+      "target_versions": {},
+      "containment_candidates": 1,
+      "stage_status": {
+        "intake": "complete",
+        "exposure": "complete",
+        "control_check": "complete",
+        "kri_register": "complete",
+        "kri_scoring": "complete",
+        "remediation_planning": "complete",
+        "ticket": "not_run",
+        "remediation_approval": "not_run",
+        "containment": "not_run",
+        "patch_execution": "not_run",
+        "verification": "not_run",
+        "recovery": "not_run",
+        "evidence": "complete"
+      },
+      "errors": [],
+      "unknown_count": 13,
+      "approval_count": 0,
+      "containment_counts": {
+        "isolated": 0,
+        "blocked": 0,
+        "failed": 0,
+        "restored": 0
+      },
+      "patch_counts": {
+        "status": null,
+        "submitted": 0,
+        "skipped": 0
+      },
+      "verification_counts": {
+        "remediated": 0,
+        "still_affected": 0,
+        "unknown": 0,
+        "infection": "not_run"
+      },
+      "report_md": "runs/20261103T213526Z-CVE-2026-105481-79f20c/report.md",
+      "report_html": null,
+      "advisory": false,
+      "advisory_source": null,
+      "manifest_ok": true,
+      "management_summary": "reports/executive-summaries/20261103T213526Z-CVE-2026-105481-79f20c.md",
+      "run_dir": null
+    },
+    {
+      "run_id": "20261103T213531Z-CVE-2026-105482-6bfded",
+      "cve": "CVE-2026-105482",
+      "status": "awaiting_ticket_approval",
+      "assets": [
+        {
+          "uuid": "60ff70f2-2b94-40c4-88f5-d846aa5b141a",
+          "hostname": "win11",
+          "ipv4": "172.26.48.31",
+          "mac": "00:50:56:a6:ce:31",
+          "owner": "unknown",
+          "kri_score": 85.5,
+          "kri_tier": "critical"
+        }
+      ],
+      "asset_count": 1,
+      "kri_counts": {
+        "unknown": 7,
+        "detected": 2
+      },
+      "kri_by_id": {
+        "KRI-01": {
+          "unknown": 1
+        },
+        "KRI-02": {
+          "unknown": 1
+        },
+        "KRI-03": {
+          "unknown": 1
+        },
+        "KRI-04": {
+          "unknown": 1
+        },
+        "KRI-05": {
+          "detected": 1
+        },
+        "KRI-06": {
+          "unknown": 1
+        },
+        "KRI-07": {
+          "unknown": 1
+        },
+        "KRI-08": {
+          "unknown": 1
+        },
+        "KRI-09": {
+          "detected": 1
+        }
+      },
+      "plan_paths": {
+        "60ff70f2-2b94-40c4-88f5-d846aa5b141a": "patch"
+      },
+      "target_versions": {},
+      "containment_candidates": 1,
+      "stage_status": {
+        "intake": "complete",
+        "exposure": "complete",
+        "control_check": "complete",
+        "kri_register": "complete",
+        "kri_scoring": "complete",
+        "remediation_planning": "complete",
+        "ticket": "not_run",
+        "remediation_approval": "not_run",
+        "containment": "not_run",
+        "patch_execution": "not_run",
+        "verification": "not_run",
+        "recovery": "not_run",
+        "evidence": "complete"
+      },
+      "errors": [],
+      "unknown_count": 13,
+      "approval_count": 0,
+      "containment_counts": {
+        "isolated": 0,
+        "blocked": 0,
+        "failed": 0,
+        "restored": 0
+      },
+      "patch_counts": {
+        "status": null,
+        "submitted": 0,
+        "skipped": 0
+      },
+      "verification_counts": {
+        "remediated": 0,
+        "still_affected": 0,
+        "unknown": 0,
+        "infection": "not_run"
+      },
+      "report_md": "runs/20261103T213531Z-CVE-2026-105482-6bfded/report.md",
+      "report_html": null,
+      "advisory": false,
+      "advisory_source": null,
+      "manifest_ok": true,
+      "management_summary": "reports/executive-summaries/20261103T213531Z-CVE-2026-105482-6bfded.md",
+      "run_dir": null
+    },
+    {
+      "run_id": "20261103T213536Z-CVE-2026-106069-d6e675",
+      "cve": "CVE-2026-106069",
+      "status": "awaiting_ticket_approval",
+      "assets": [
+        {
+          "uuid": "60ff70f2-2b94-40c4-88f5-d846aa5b141a",
+          "hostname": "win11",
+          "ipv4": "172.26.48.31",
+          "mac": "00:50:56:a6:ce:31",
+          "owner": "unknown",
+          "kri_score": 85.5,
+          "kri_tier": "critical"
+        }
+      ],
+      "asset_count": 1,
+      "kri_counts": {
+        "unknown": 7,
+        "detected": 2
+      },
+      "kri_by_id": {
+        "KRI-01": {
+          "unknown": 1
+        },
+        "KRI-02": {
+          "unknown": 1
+        },
+        "KRI-03": {
+          "unknown": 1
+        },
+        "KRI-04": {
+          "unknown": 1
+        },
+        "KRI-05": {
+          "detected": 1
+        },
+        "KRI-06": {
+          "unknown": 1
+        },
+        "KRI-07": {
+          "unknown": 1
+        },
+        "KRI-08": {
+          "unknown": 1
+        },
+        "KRI-09": {
+          "detected": 1
+        }
+      },
+      "plan_paths": {
+        "60ff70f2-2b94-40c4-88f5-d846aa5b141a": "patch"
+      },
+      "target_versions": {},
+      "containment_candidates": 1,
+      "stage_status": {
+        "intake": "complete",
+        "exposure": "complete",
+        "control_check": "complete",
+        "kri_register": "complete",
+        "kri_scoring": "complete",
+        "remediation_planning": "complete",
+        "ticket": "not_run",
+        "remediation_approval": "not_run",
+        "containment": "not_run",
+        "patch_execution": "not_run",
+        "verification": "not_run",
+        "recovery": "not_run",
+        "evidence": "complete"
+      },
+      "errors": [],
+      "unknown_count": 13,
+      "approval_count": 0,
+      "containment_counts": {
+        "isolated": 0,
+        "blocked": 0,
+        "failed": 0,
+        "restored": 0
+      },
+      "patch_counts": {
+        "status": null,
+        "submitted": 0,
+        "skipped": 0
+      },
+      "verification_counts": {
+        "remediated": 0,
+        "still_affected": 0,
+        "unknown": 0,
+        "infection": "not_run"
+      },
+      "report_md": "runs/20261103T213536Z-CVE-2026-106069-d6e675/report.md",
+      "report_html": null,
+      "advisory": false,
+      "advisory_source": null,
+      "manifest_ok": true,
+      "management_summary": "reports/executive-summaries/20261103T213536Z-CVE-2026-106069-d6e675.md",
+      "run_dir": null
+    },
+    {
+      "run_id": "20261103T213541Z-CVE-2026-106072-4903f8",
+      "cve": "CVE-2026-106072",
+      "status": "awaiting_ticket_approval",
+      "assets": [
+        {
+          "uuid": "60ff70f2-2b94-40c4-88f5-d846aa5b141a",
+          "hostname": "win11",
+          "ipv4": "172.26.48.31",
+          "mac": "00:50:56:a6:ce:31",
+          "owner": "unknown",
+          "kri_score": 85.5,
+          "kri_tier": "critical"
+        }
+      ],
+      "asset_count": 1,
+      "kri_counts": {
+        "unknown": 7,
+        "detected": 2
+      },
+      "kri_by_id": {
+        "KRI-01": {
+          "unknown": 1
+        },
+        "KRI-02": {
+          "unknown": 1
+        },
+        "KRI-03": {
+          "unknown": 1
+        },
+        "KRI-04": {
+          "unknown": 1
+        },
+        "KRI-05": {
+          "detected": 1
+        },
+        "KRI-06": {
+          "unknown": 1
+        },
+        "KRI-07": {
+          "unknown": 1
+        },
+        "KRI-08": {
+          "unknown": 1
+        },
+        "KRI-09": {
+          "detected": 1
+        }
+      },
+      "plan_paths": {
+        "60ff70f2-2b94-40c4-88f5-d846aa5b141a": "patch"
+      },
+      "target_versions": {},
+      "containment_candidates": 1,
+      "stage_status": {
+        "intake": "complete",
+        "exposure": "complete",
+        "control_check": "complete",
+        "kri_register": "complete",
+        "kri_scoring": "complete",
+        "remediation_planning": "complete",
+        "ticket": "not_run",
+        "remediation_approval": "not_run",
+        "containment": "not_run",
+        "patch_execution": "not_run",
+        "verification": "not_run",
+        "recovery": "not_run",
+        "evidence": "complete"
+      },
+      "errors": [],
+      "unknown_count": 13,
+      "approval_count": 0,
+      "containment_counts": {
+        "isolated": 0,
+        "blocked": 0,
+        "failed": 0,
+        "restored": 0
+      },
+      "patch_counts": {
+        "status": null,
+        "submitted": 0,
+        "skipped": 0
+      },
+      "verification_counts": {
+        "remediated": 0,
+        "still_affected": 0,
+        "unknown": 0,
+        "infection": "not_run"
+      },
+      "report_md": "runs/20261103T213541Z-CVE-2026-106072-4903f8/report.md",
+      "report_html": null,
+      "advisory": false,
+      "advisory_source": null,
+      "manifest_ok": true,
+      "management_summary": "reports/executive-summaries/20261103T213541Z-CVE-2026-106072-4903f8.md",
+      "run_dir": null
+    },
+    {
+      "run_id": "20261103T213546Z-CVE-2026-106073-e25a41",
+      "cve": "CVE-2026-106073",
+      "status": "awaiting_ticket_approval",
+      "assets": [
+        {
+          "uuid": "60ff70f2-2b94-40c4-88f5-d846aa5b141a",
+          "hostname": "win11",
+          "ipv4": "172.26.48.31",
+          "mac": "00:50:56:a6:ce:31",
+          "owner": "unknown",
+          "kri_score": 85.5,
+          "kri_tier": "critical"
+        }
+      ],
+      "asset_count": 1,
+      "kri_counts": {
+        "unknown": 7,
+        "detected": 2
+      },
+      "kri_by_id": {
+        "KRI-01": {
+          "unknown": 1
+        },
+        "KRI-02": {
+          "unknown": 1
+        },
+        "KRI-03": {
+          "unknown": 1
+        },
+        "KRI-04": {
+          "unknown": 1
+        },
+        "KRI-05": {
+          "detected": 1
+        },
+        "KRI-06": {
+          "unknown": 1
+        },
+        "KRI-07": {
+          "unknown": 1
+        },
+        "KRI-08": {
+          "unknown": 1
+        },
+        "KRI-09": {
+          "detected": 1
+        }
+      },
+      "plan_paths": {
+        "60ff70f2-2b94-40c4-88f5-d846aa5b141a": "patch"
+      },
+      "target_versions": {},
+      "containment_candidates": 1,
+      "stage_status": {
+        "intake": "complete",
+        "exposure": "complete",
+        "control_check": "complete",
+        "kri_register": "complete",
+        "kri_scoring": "complete",
+        "remediation_planning": "complete",
+        "ticket": "not_run",
+        "remediation_approval": "not_run",
+        "containment": "not_run",
+        "patch_execution": "not_run",
+        "verification": "not_run",
+        "recovery": "not_run",
+        "evidence": "complete"
+      },
+      "errors": [],
+      "unknown_count": 13,
+      "approval_count": 0,
+      "containment_counts": {
+        "isolated": 0,
+        "blocked": 0,
+        "failed": 0,
+        "restored": 0
+      },
+      "patch_counts": {
+        "status": null,
+        "submitted": 0,
+        "skipped": 0
+      },
+      "verification_counts": {
+        "remediated": 0,
+        "still_affected": 0,
+        "unknown": 0,
+        "infection": "not_run"
+      },
+      "report_md": "runs/20261103T213546Z-CVE-2026-106073-e25a41/report.md",
+      "report_html": null,
+      "advisory": false,
+      "advisory_source": null,
+      "manifest_ok": true,
+      "management_summary": "reports/executive-summaries/20261103T213546Z-CVE-2026-106073-e25a41.md",
+      "run_dir": null
+    },
+    {
+      "run_id": "20261103T213550Z-CVE-2026-106074-26891a",
+      "cve": "CVE-2026-106074",
+      "status": "awaiting_ticket_approval",
+      "assets": [
+        {
+          "uuid": "60ff70f2-2b94-40c4-88f5-d846aa5b141a",
+          "hostname": "win11",
+          "ipv4": "172.26.48.31",
+          "mac": "00:50:56:a6:ce:31",
+          "owner": "unknown",
+          "kri_score": 85.5,
+          "kri_tier": "critical"
+        }
+      ],
+      "asset_count": 1,
+      "kri_counts": {
+        "unknown": 7,
+        "detected": 2
+      },
+      "kri_by_id": {
+        "KRI-01": {
+          "unknown": 1
+        },
+        "KRI-02": {
+          "unknown": 1
+        },
+        "KRI-03": {
+          "unknown": 1
+        },
+        "KRI-04": {
+          "unknown": 1
+        },
+        "KRI-05": {
+          "detected": 1
+        },
+        "KRI-06": {
+          "unknown": 1
+        },
+        "KRI-07": {
+          "unknown": 1
+        },
+        "KRI-08": {
+          "unknown": 1
+        },
+        "KRI-09": {
+          "detected": 1
+        }
+      },
+      "plan_paths": {
+        "60ff70f2-2b94-40c4-88f5-d846aa5b141a": "patch"
+      },
+      "target_versions": {},
+      "containment_candidates": 1,
+      "stage_status": {
+        "intake": "complete",
+        "exposure": "complete",
+        "control_check": "complete",
+        "kri_register": "complete",
+        "kri_scoring": "complete",
+        "remediation_planning": "complete",
+        "ticket": "not_run",
+        "remediation_approval": "not_run",
+        "containment": "not_run",
+        "patch_execution": "not_run",
+        "verification": "not_run",
+        "recovery": "not_run",
+        "evidence": "complete"
+      },
+      "errors": [],
+      "unknown_count": 13,
+      "approval_count": 0,
+      "containment_counts": {
+        "isolated": 0,
+        "blocked": 0,
+        "failed": 0,
+        "restored": 0
+      },
+      "patch_counts": {
+        "status": null,
+        "submitted": 0,
+        "skipped": 0
+      },
+      "verification_counts": {
+        "remediated": 0,
+        "still_affected": 0,
+        "unknown": 0,
+        "infection": "not_run"
+      },
+      "report_md": "runs/20261103T213550Z-CVE-2026-106074-26891a/report.md",
+      "report_html": null,
+      "advisory": false,
+      "advisory_source": null,
+      "manifest_ok": true,
+      "management_summary": "reports/executive-summaries/20261103T213550Z-CVE-2026-106074-26891a.md",
+      "run_dir": null
+    },
+    {
+      "run_id": "20261103T213555Z-CVE-2026-109618-3d12a8",
+      "cve": "CVE-2026-109618",
+      "status": "awaiting_ticket_approval",
+      "assets": [
+        {
+          "uuid": "0dd7c0c4-4487-484f-995c-01c4d09a2bb0",
+          "hostname": "pa-820.lab.tenablesecurity.com",
+          "ipv4": "172.26.0.22",
+          "mac": "e8:98:6d:a9:d5:00",
+          "owner": "unknown",
+          "kri_score": 88.2,
+          "kri_tier": "critical"
+        },
+        {
+          "uuid": "e577a0de-9d56-4a22-9a59-7cf0ad038913",
+          "hostname": "rhel9",
+          "ipv4": "172.26.48.55",
+          "mac": "00:50:56:a6:f0:98",
+          "owner": "unknown",
+          "kri_score": 85.6,
+          "kri_tier": "critical"
+        }
+      ],
+      "asset_count": 2,
+      "kri_counts": {
+        "unknown": 12,
+        "detected": 4,
+        "not_applicable": 2
+      },
+      "kri_by_id": {
+        "KRI-01": {
+          "unknown": 2
+        },
+        "KRI-02": {
+          "unknown": 2
+        },
+        "KRI-03": {
+          "unknown": 2
+        },
+        "KRI-04": {
+          "unknown": 2
+        },
+        "KRI-05": {
+          "detected": 2
+        },
+        "KRI-06": {
+          "unknown": 2
+        },
+        "KRI-07": {
+          "unknown": 2
+        },
+        "KRI-08": {
+          "not_applicable": 2
+        },
+        "KRI-09": {
+          "detected": 2
+        }
+      },
+      "plan_paths": {
+        "0dd7c0c4-4487-484f-995c-01c4d09a2bb0": "patch",
+        "e577a0de-9d56-4a22-9a59-7cf0ad038913": "patch"
+      },
+      "target_versions": {},
+      "containment_candidates": 2,
+      "stage_status": {
+        "intake": "complete",
+        "exposure": "complete",
+        "control_check": "complete",
+        "kri_register": "complete",
+        "kri_scoring": "complete",
+        "remediation_planning": "complete",
+        "ticket": "not_run",
+        "remediation_approval": "not_run",
+        "containment": "not_run",
+        "patch_execution": "not_run",
+        "verification": "not_run",
+        "recovery": "not_run",
+        "evidence": "complete"
+      },
+      "errors": [],
+      "unknown_count": 23,
+      "approval_count": 0,
+      "containment_counts": {
+        "isolated": 0,
+        "blocked": 0,
+        "failed": 0,
+        "restored": 0
+      },
+      "patch_counts": {
+        "status": null,
+        "submitted": 0,
+        "skipped": 0
+      },
+      "verification_counts": {
+        "remediated": 0,
+        "still_affected": 0,
+        "unknown": 0,
+        "infection": "not_run"
+      },
+      "report_md": "runs/20261103T213555Z-CVE-2026-109618-3d12a8/report.md",
+      "report_html": null,
+      "advisory": true,
+      "advisory_source": "PHP security advisory, 2026-10-21 / GHSA-w8hw-w9fx-j79w",
+      "manifest_ok": true,
+      "management_summary": "reports/executive-summaries/20261103T213555Z-CVE-2026-109618-3d12a8.md",
+      "run_dir": null
+    },
+    {
+      "run_id": "20261103T213601Z-CVE-2026-109619-099c81",
+      "cve": "CVE-2026-109619",
+      "status": "awaiting_ticket_approval",
+      "assets": [
+        {
+          "uuid": "0dd7c0c4-4487-484f-995c-01c4d09a2bb0",
+          "hostname": "pa-820.lab.tenablesecurity.com",
+          "ipv4": "172.26.0.22",
+          "mac": "e8:98:6d:a9:d5:00",
+          "owner": "unknown",
+          "kri_score": 88.2,
+          "kri_tier": "critical"
+        },
+        {
+          "uuid": "e577a0de-9d56-4a22-9a59-7cf0ad038913",
+          "hostname": "rhel9",
+          "ipv4": "172.26.48.55",
+          "mac": "00:50:56:a6:f0:98",
+          "owner": "unknown",
+          "kri_score": 85.6,
+          "kri_tier": "critical"
+        }
+      ],
+      "asset_count": 2,
+      "kri_counts": {
+        "unknown": 12,
+        "detected": 4,
+        "not_applicable": 2
+      },
+      "kri_by_id": {
+        "KRI-01": {
+          "unknown": 2
+        },
+        "KRI-02": {
+          "unknown": 2
+        },
+        "KRI-03": {
+          "unknown": 2
+        },
+        "KRI-04": {
+          "unknown": 2
+        },
+        "KRI-05": {
+          "detected": 2
+        },
+        "KRI-06": {
+          "unknown": 2
+        },
+        "KRI-07": {
+          "unknown": 2
+        },
+        "KRI-08": {
+          "not_applicable": 2
+        },
+        "KRI-09": {
+          "detected": 2
+        }
+      },
+      "plan_paths": {
+        "0dd7c0c4-4487-484f-995c-01c4d09a2bb0": "patch",
+        "e577a0de-9d56-4a22-9a59-7cf0ad038913": "patch"
+      },
+      "target_versions": {},
+      "containment_candidates": 2,
+      "stage_status": {
+        "intake": "complete",
+        "exposure": "complete",
+        "control_check": "complete",
+        "kri_register": "complete",
+        "kri_scoring": "complete",
+        "remediation_planning": "complete",
+        "ticket": "not_run",
+        "remediation_approval": "not_run",
+        "containment": "not_run",
+        "patch_execution": "not_run",
+        "verification": "not_run",
+        "recovery": "not_run",
+        "evidence": "complete"
+      },
+      "errors": [],
+      "unknown_count": 23,
+      "approval_count": 0,
+      "containment_counts": {
+        "isolated": 0,
+        "blocked": 0,
+        "failed": 0,
+        "restored": 0
+      },
+      "patch_counts": {
+        "status": null,
+        "submitted": 0,
+        "skipped": 0
+      },
+      "verification_counts": {
+        "remediated": 0,
+        "still_affected": 0,
+        "unknown": 0,
+        "infection": "not_run"
+      },
+      "report_md": "runs/20261103T213601Z-CVE-2026-109619-099c81/report.md",
+      "report_html": null,
+      "advisory": true,
+      "advisory_source": "PHP security advisory, 2026-10-21 / GHSA-6wmf-4rv5-p3rp",
+      "manifest_ok": true,
+      "management_summary": "reports/executive-summaries/20261103T213601Z-CVE-2026-109619-099c81.md",
+      "run_dir": null
+    },
+    {
+      "run_id": "20261103T213607Z-CVE-2026-111497-74fcdb",
+      "cve": "CVE-2026-111497",
+      "status": "awaiting_ticket_approval",
+      "assets": [
+        {
+          "uuid": "14edbfe0-f977-4234-83ee-8a9624225b0f",
+          "hostname": "freebsd14",
+          "ipv4": "172.26.48.21",
+          "mac": "00:50:56:a6:e7:68",
+          "owner": "unknown",
+          "kri_score": 86.1,
+          "kri_tier": "critical"
+        },
+        {
+          "uuid": "2a89cb2f-fe1f-4ca5-b9d0-3027ea18236b",
+          "hostname": "rhel10",
+          "ipv4": "172.26.48.11",
+          "mac": "00:50:56:a6:e4:cd",
+          "owner": "unknown",
+          "kri_score": 85.6,
+          "kri_tier": "critical"
+        },
+        {
+          "uuid": "45295f4d-d8fc-44ef-b5b3-116d28407f42",
+          "hostname": "oraclelinux10",
+          "ipv4": "172.26.48.19",
+          "mac": "00:50:56:a6:c2:7b",
+          "owner": "unknown",
+          "kri_score": 85.6,
+          "kri_tier": "critical"
+        },
+        {
+          "uuid": "5101c8c8-a841-4f16-9bec-0bfa5defb241",
+          "hostname": "ol9",
+          "ipv4": "172.26.48.34",
+          "mac": "00:50:56:a6:56:2a",
+          "owner": "unknown",
+          "kri_score": 85.6,
+          "kri_tier": "critical"
+        },
+        {
+          "uuid": "6c1ffce8-2c1e-4953-9a29-5b76388d3c8b",
+          "hostname": "rhel8",
+          "ipv4": "172.26.48.57",
+          "mac": "00:50:56:a6:3b:23",
+          "owner": "unknown",
+          "kri_score": 85.6,
+          "kri_tier": "critical"
+        },
+        {
+          "uuid": "94cb18cb-5bff-44aa-927c-0934dae00541",
+          "hostname": "oraclelinux8.target.tenablesecurity.com",
+          "ipv4": "172.26.48.17",
+          "mac": "00:50:56:a6:a5:7b",
+          "owner": "unknown",
+          "kri_score": 85.6,
+          "kri_tier": "critical"
+        },
+        {
+          "uuid": "e577a0de-9d56-4a22-9a59-7cf0ad038913",
+          "hostname": "rhel9",
+          "ipv4": "172.26.48.55",
+          "mac": "00:50:56:a6:f0:98",
+          "owner": "unknown",
+          "kri_score": 85.6,
+          "kri_tier": "critical"
+        },
+        {
+          "uuid": "60ff70f2-2b94-40c4-88f5-d846aa5b141a",
+          "hostname": "win11",
+          "ipv4": "172.26.48.31",
+          "mac": "00:50:56:a6:ce:31",
+          "owner": "unknown",
+          "kri_score": 85.5,
+          "kri_tier": "critical"
+        },
+        {
+          "uuid": "a1ebd2da-f81c-45db-b1ce-8574686d6297",
+          "hostname": "tpm-u2604",
+          "ipv4": "10.238.64.120",
+          "mac": "10:66:6a:7b:9e:98",
+          "owner": "unknown",
+          "kri_score": 85.1,
+          "kri_tier": "critical"
+        },
+        {
+          "uuid": "ab8890fa-0951-4ffa-89bc-aa0fd190e6c3",
+          "hostname": "tpm-rocky9",
+          "ipv4": "10.238.64.129",
+          "mac": "10:66:6a:78:fa:f4",
+          "owner": "unknown",
+          "kri_score": 85.1,
+          "kri_tier": "critical"
+        },
+        {
+          "uuid": "ddfb5ea0-f4f5-4ebf-b284-f249ac7fa3ff",
+          "hostname": "debian12",
+          "ipv4": "172.26.48.15",
+          "mac": "00:50:56:a6:3d:5d",
+          "owner": "unknown",
+          "kri_score": 84.9,
+          "kri_tier": "critical"
+        },
+        {
+          "uuid": "5172a7cb-94f0-41bc-b830-69085afbab88",
+          "hostname": "tpm-deb13",
+          "ipv4": "10.238.64.115",
+          "mac": "10:66:6a:0c:e6:f2",
+          "owner": "unknown",
+          "kri_score": 84.6,
+          "kri_tier": "critical"
+        },
+        {
+          "uuid": "5bc962b1-c379-459f-a959-d6f5e4a0868d",
+          "hostname": "deb13",
+          "ipv4": "172.26.48.35",
+          "mac": "00:50:56:a6:19:46",
+          "owner": "unknown",
+          "kri_score": 83.9,
+          "kri_tier": "critical"
+        },
+        {
+          "uuid": "edde7440-0479-498b-9fef-ccfb890e81c5",
+          "hostname": "freebsd13",
+          "ipv4": "172.26.48.25",
+          "mac": "00:50:56:a6:9c:32",
+          "owner": "unknown",
+          "kri_score": 82.6,
+          "kri_tier": "critical"
+        },
+        {
+          "uuid": "df36192f-8f04-49de-aac9-a4f06722277e",
+          "hostname": "tap-tnabl-lnx01",
+          "ipv4": "10.100.213.231",
+          "mac": "00:50:56:a1:1f:21",
+          "owner": "unknown",
+          "kri_score": 80.6,
+          "kri_tier": "critical"
+        }
+      ],
+      "asset_count": 15,
+      "kri_counts": {
+        "unknown": 90,
+        "detected": 24,
+        "not_applicable": 14,
+        "not_detected": 7
+      },
+      "kri_by_id": {
+        "KRI-01": {
+          "unknown": 14,
+          "not_detected": 1
+        },
+        "KRI-02": {
+          "unknown": 15
+        },
+        "KRI-03": {
+          "unknown": 15
+        },
+        "KRI-04": {
+          "unknown": 15
+        },
+        "KRI-05": {
+          "detected": 15
+        },
+        "KRI-06": {
+          "unknown": 15
+        },
+        "KRI-07": {
+          "unknown": 15
+        },
+        "KRI-08": {
+          "not_applicable": 14,
+          "unknown": 1
+        },
+        "KRI-09": {
+          "detected": 9,
+          "not_detected": 6
+        }
+      },
+      "plan_paths": {
+        "14edbfe0-f977-4234-83ee-8a9624225b0f": "patch",
+        "2a89cb2f-fe1f-4ca5-b9d0-3027ea18236b": "patch",
+        "45295f4d-d8fc-44ef-b5b3-116d28407f42": "patch",
+        "5101c8c8-a841-4f16-9bec-0bfa5defb241": "patch",
+        "6c1ffce8-2c1e-4953-9a29-5b76388d3c8b": "patch",
+        "94cb18cb-5bff-44aa-927c-0934dae00541": "patch",
+        "e577a0de-9d56-4a22-9a59-7cf0ad038913": "patch",
+        "60ff70f2-2b94-40c4-88f5-d846aa5b141a": "patch",
+        "a1ebd2da-f81c-45db-b1ce-8574686d6297": "patch",
+        "ab8890fa-0951-4ffa-89bc-aa0fd190e6c3": "patch",
+        "ddfb5ea0-f4f5-4ebf-b284-f249ac7fa3ff": "patch",
+        "5172a7cb-94f0-41bc-b830-69085afbab88": "patch",
+        "5bc962b1-c379-459f-a959-d6f5e4a0868d": "patch",
+        "edde7440-0479-498b-9fef-ccfb890e81c5": "patch",
+        "df36192f-8f04-49de-aac9-a4f06722277e": "patch"
+      },
+      "target_versions": {},
+      "containment_candidates": 15,
+      "stage_status": {
+        "intake": "complete",
+        "exposure": "complete",
+        "control_check": "complete",
+        "kri_register": "complete",
+        "kri_scoring": "complete",
+        "remediation_planning": "complete",
+        "ticket": "not_run",
+        "remediation_approval": "not_run",
+        "containment": "not_run",
+        "patch_execution": "not_run",
+        "verification": "not_run",
+        "recovery": "not_run",
+        "evidence": "complete"
+      },
+      "errors": [],
+      "unknown_count": 169,
+      "approval_count": 0,
+      "containment_counts": {
+        "isolated": 0,
+        "blocked": 0,
+        "failed": 0,
+        "restored": 0
+      },
+      "patch_counts": {
+        "status": null,
+        "submitted": 0,
+        "skipped": 0
+      },
+      "verification_counts": {
+        "remediated": 0,
+        "still_affected": 0,
+        "unknown": 0,
+        "infection": "not_run"
+      },
+      "report_md": "runs/20261103T213607Z-CVE-2026-111497-74fcdb/report.md",
+      "report_html": null,
+      "advisory": true,
+      "advisory_source": "Node.js October 2026 security releases",
+      "manifest_ok": true,
+      "management_summary": "reports/executive-summaries/20261103T213607Z-CVE-2026-111497-74fcdb.md",
+      "run_dir": null
+    }
+  ],
+  "summary": {
+    "total": 9,
+    "no_exposure": 0,
+    "awaiting_ticket_approval": 9,
+    "errors": 0
+  }
+}

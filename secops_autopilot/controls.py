@@ -1,7 +1,7 @@
 """Owner and control inventory from CSV.
 
 Tenable answers "is a Tenable agent flag present?" but not "is the EDR healthy?"
-or "who owns this asset?". Those answers belong to the CMDB and EDR consoles.
+or "who owns this asset?". Those answers belong to the asset inventory and EDR consoles.
 This module accepts a small CSV export from either, and records ``unknown`` when
 no row matches. It never synthesizes an owner or a control state.
 """
@@ -73,9 +73,21 @@ def _matches(row: dict[str, str], keys: list[str]) -> bool:
 
 
 class OwnerDirectory:
-    def __init__(self, path: str | Path | None = None) -> None:
+    def __init__(
+        self,
+        path: str | Path | None = None,
+        *,
+        rows: list[dict[str, Any]] | None = None,
+    ) -> None:
         self.path = path
-        self.rows = _load_rows(path)
+        self.rows = list(rows) if rows is not None else _load_rows(path)
+        self._source = (
+            f"owners inventory: {self.path}"
+            if self.path
+            else "in-memory owners fixture"
+            if rows is not None
+            else "no asset inventory owner mapping configured"
+        )
 
     def lookup(self, asset: AssetRef) -> OwnerInfo:
         keys = _asset_keys(asset)
@@ -85,35 +97,44 @@ class OwnerDirectory:
                     owner=row.get("owner") or UNKNOWN,
                     team=row.get("team") or UNKNOWN,
                     email=row.get("email") or None,
-                    source=f"owners inventory: {self.path}",
+                    source=self._source,
                     match=row.get("match"),
                 )
-        return OwnerInfo(
-            source=(
-                f"owners inventory: {self.path} (no row matched)"
-                if self.path
-                else "no CMDB owner mapping configured"
-            )
-        )
+        return OwnerInfo(source=self._source)
 
     def public_snapshot(self) -> dict[str, Any]:
         return {"path": str(self.path) if self.path else None, "rows": len(self.rows)}
 
 
 class ControlInventory:
-    def __init__(self, path: str | Path | None = None) -> None:
+    def __init__(
+        self,
+        path: str | Path | None = None,
+        *,
+        rows: list[dict[str, Any]] | None = None,
+    ) -> None:
         self.path = path
-        self.rows = _load_rows(path)
+        self.rows = list(rows) if rows is not None else _load_rows(path)
+        self._source = (
+            f"controls inventory: {self.path}"
+            if self.path
+            else "in-memory controls fixture"
+            if rows is not None
+            else "no control inventory configured"
+        )
 
     def lookup(self, asset: AssetRef) -> dict[str, Any]:
         keys = _asset_keys(asset)
         for row in self.rows:
             if not _matches(row, keys):
                 continue
+            nac_value = row.get("nac_compliant")
+            if nac_value is None:
+                nac_value = row.get("nac_posture")
             return {
                 "matched": True,
                 "match": row.get("match"),
-                "source": f"controls inventory: {self.path}",
+                "source": self._source,
                 "edr_present": as_bool(row.get("edr_present")),
                 "edr_vendor": row.get("edr_vendor") or None,
                 "edr_version": row.get("edr_version") or None,
@@ -128,21 +149,12 @@ class ControlInventory:
                 "av_signature_age_hours": as_float(row.get("av_signature_age_hours")),
                 "av_mode": row.get("av_mode") or None,
                 "app_control_mode": row.get("app_control_mode") or None,
-                "nac_compliant": _parse_nac(
-                    row.get("nac_compliant") or row.get("nac_posture")
-                ),
+                "nac_compliant": _parse_nac(nac_value),
                 "nac_policy": row.get("nac_policy") or None,
                 "patch_agent_present": as_bool(row.get("patch_agent_present")),
                 "updated_at": row.get("updated_at") or None,
             }
-        return {
-            "matched": False,
-            "source": (
-                f"controls inventory: {self.path} (no row matched)"
-                if self.path
-                else "no control inventory configured"
-            ),
-        }
+        return {"matched": False, "source": self._source}
 
     def public_snapshot(self) -> dict[str, Any]:
         return {"path": str(self.path) if self.path else None, "rows": len(self.rows)}

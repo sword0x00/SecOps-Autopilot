@@ -22,6 +22,13 @@ remediation_plan:
     available: true
     patch_refs:
       - "KB4012212"
+    fixed_versions:              # from the advisory
+      - product: php
+        branch: "8.4"
+        fixed: "8.4.27"
+        support: supported
+    target_versions_by_asset:
+      host-01: "8.4.27"          # only when the advisory names a fix for that branch
     prerequisites: ["..." ]
     rollback: "..."
     estimated_effort: unknown
@@ -30,7 +37,7 @@ remediation_plan:
       rationale: "..."
       rule_ref: "..."
       verified: false           # do not claim verified without a test
-    - type: siem_rule
+    - type: detection_rule
       rationale: "..."
       rule_ref: "..."
       verified: false
@@ -45,6 +52,9 @@ remediation_plan:
   per_asset:
     - asset: "host-01"
       path: patch              # patch | compensate | isolate
+      runtime_product: php
+      runtime_version: "8.4.26"
+      target_version: "8.4.27" # null when no vendor fix exists for the branch
       reason: "..."
       owner: "..."
   approval_required: true
@@ -52,15 +62,19 @@ remediation_plan:
 
 ## Procedure
 
-1. **Establish the patch path first.** A patch that exists and deploys is almost always the better answer. Capture prerequisites, rollback, and the effort estimate.
-2. **Identify what makes patching impossible on schedule.** Uptime constraints, unsupported OS, vendor-frozen appliances, no owner. These become compensating-control candidates — not excuses.
-3. **Select compensating controls that actually block the exploit path.** Match the control to the vulnerability mechanism: a network IPS signature for network-reachable exploitation, a WAF rule for web, a firewall block for a protocol that should not traverse a boundary (for example, SMB across segments).
-4. **Mark controls unverified until tested.** `verified: false` is the default. Only a test in the target environment — or a documented vendor validation — promotes it to `true`.
-5. **Assign each asset a path.** `patch`, `compensate`, or `isolate`. Every asset gets one, with a stated reason.
-6. **Surface the approval gate.** The plan is a proposal. It goes to a ticket and an infosec approval before anything executes.
+1. **Establish the patch path first.** A patch that exists and deploys is almost always the better answer. Resolve the runtime product/version from CPE and take the advisory's fixed version for that branch. Capture prerequisites, rollback, and the effort estimate.
+2. **Do not invent a patch target.** If the advisory records no fixed version for the asset's branch (for example, an unsupported PHP 8.1 host), set `target_version: null`, choose `compensate`, and explain the migration/compensation path.
+3. **Identify what makes patching impossible on schedule.** Uptime constraints, unsupported OS/runtime, vendor-frozen appliances, no owner. These become compensating-control candidates — not excuses.
+4. **Select compensating controls that actually block the exploit path.** Match the control to the vulnerability mechanism: a network IPS signature for network-reachable exploitation, a WAF rule for web, a firewall block for a protocol that should not traverse a boundary (for example, SMB across segments). Use vendor mitigations from the advisory when supplied; they remain unverified until tested.
+5. **Mark controls unverified until tested.** `verified: false` is the default. Only a test in the target environment — or a documented vendor validation — promotes it to `true`.
+6. **Assign each asset a path.** `patch`, `compensate`, or `isolate`. Every asset gets one, with a stated reason.
+7. **Surface the approval gate.** The plan is a proposal. It goes to a ticket and an infosec approval before containment or patch submission.
+8. **Keep execution separate.** A patch job submitted under the `patch` gate is an execution record, not a fix. Verification is a fresh scanner read; only then is remediation claimed.
 
 ## Guardrails
 
 - Never present a compensating control as equivalent to a patch. Say what it does not cover.
 - Never mark a control `verified: true` without a test or vendor validation reference.
+- Never invent a fixed version or a target version. A missing advisory fix is a compensation/migration decision, not a number to guess.
+- Never treat a submitted patch job or a ticket as verified remediation.
 - If the vulnerability record's confidence is `low` or `unknown`, say so in the plan — it changes how much the plan can be trusted.

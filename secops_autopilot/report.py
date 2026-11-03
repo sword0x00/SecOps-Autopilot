@@ -7,6 +7,7 @@ records the engine writes, so it cannot claim anything the run did not record.
 from __future__ import annotations
 
 import html
+import json
 from typing import Any
 
 from .models import STAGE_LABELS, RunState
@@ -15,8 +16,9 @@ from .util import UNKNOWN
 STATUS_TEXT = {
     "initialized": "Initialized",
     "intake_failed": "Intake failed",
+    "stage_failed": "A pipeline stage failed",
     "no_exposure_found": "No exposure found",
-    "awaiting_ticket_approval": "Awaiting approval to create the ITSM ticket",
+    "awaiting_ticket_approval": "Awaiting approval to create the ticketing-system ticket",
     "awaiting_remediation_approval": "Ticket created; awaiting infosec remediation approval",
     "remediation_rejected": "Remediation rejected by infosec",
     "approved_for_containment": "Remediation approved; containment pending",
@@ -24,7 +26,7 @@ STATUS_TEXT = {
     "awaiting_verification": "Awaiting verification",
     "verified_remediated": "Remediated and verified",
     "verification_open": "Verification complete with open items",
-    "escalated_to_soc": "Escalated to SOC (infection signal)",
+    "escalated": "Escalated (infection signal)",
     "restored": "Restored to production",
     "complete": "Complete",
 }
@@ -111,8 +113,8 @@ def _coverage(run: RunState) -> list[tuple[str, str, str]]:
     plan = run.plan or {}
     ticket = run.ticket or {}
     containment = run.containment or []
+    patch_execution = run.patch_execution or {}
     verification = run.verification or {}
-    alerts = run.alerts or []
     return [
         (
             "1. Agents & controls installed on endpoints and servers",
@@ -129,7 +131,7 @@ def _coverage(run: RunState) -> list[tuple[str, str, str]]:
             "Control posture and KRI register sections — version/feed/mode where the API or inventory exposes it; otherwise unknown with a reason.",
         ),
         (
-            "3. Compensating controls / workarounds, ITSM ticket, infosec approval, team routing",
+            "3. Compensating controls / workarounds, ticketing-system ticket, infosec approval, team routing",
             "covered"
             if plan.get("compensating_controls") and ticket.get("status") in {"APPROVED", "IN_PROGRESS", "RESOLVED"}
             else "partial"
@@ -138,26 +140,22 @@ def _coverage(run: RunState) -> list[tuple[str, str, str]]:
             "Remediation plan, ticket, and approval ledger sections.",
         ),
         (
-            "4. Ticketing → NAC isolation → patch/AV → restore or infected EDR/SOC handoff",
+            "4. Ticketing → NAC isolation → patch/AV → restore or infected EDR escalation",
             "covered"
-            if verification and (containment or not plan.get("per_asset"))
+            if verification and (containment or patch_execution or not plan.get("per_asset"))
             else "partial"
-            if containment or ticket
+            if containment or patch_execution or ticket
             else "pending",
-            "Ticket, containment, and verification sections; KRI-06/KRI-07 drive containment, infection branch is explicit.",
+            "Ticket, containment, remediation execution, and verification sections; "
+            "KRI-06/KRI-07 drive containment, the infection branch is explicit.",
         ),
         (
-            "5. Alert",
-            "covered" if alerts else "not triggered",
-            "Alerts section — KRI-07 emits a critical alert; the SIEM sink is local and simulated.",
-        ),
-        (
-            "6. Waiting for action",
+            "5. Waiting for action",
             "covered",
             "Run status, next actions, and approval ledger.",
         ),
         (
-            "7. Reporting",
+            "6. Reporting",
             "covered" if run.artifacts.get("markdown") else "partial",
             "This report plus stage records and the SHA-256 manifest.",
         ),
@@ -227,7 +225,6 @@ def render_markdown(run: RunState) -> str:
     containment = data.get("containment") or []
     verification = data.get("verification") or {}
     ticket = data.get("ticket") or {}
-    alerts = data.get("alerts") or []
     truth = data.get("truthfulness") or {}
     source = data.get("source") or {}
     lines: list[str] = []
@@ -241,10 +238,18 @@ def render_markdown(run: RunState) -> str:
     add(f"**Target:** {run.target.get('value')}  ")
     add(f"**Data source:** {source.get('product') or source.get('name') or 'unknown'}")
     add("")
+    live_reads = bool(truth.get("live_reads"))
     add(
-        "> **Read this first.** Tenable reads in this run are live. "
-        "ITSM, NAC, SIEM and EDR actions are **file-backed simulations** unless the "
-        "run explicitly records a live connector. No patch was pushed."
+        "> **Read this first.** "
+        + (
+            "Scanner reads in this run are live."
+            if live_reads
+            else "Scanner reads in this run are **simulated fixtures**; no scanner was contacted."
+        )
+        + " Ticketing, NAC, EDR and patch-management actions are **file-backed "
+        "simulations** unless the run explicitly records a live connector. "
+        "No host was patched by this engine; patch jobs are submissions, not "
+        "proof of remediation."
     )
     add("")
 
@@ -282,6 +287,10 @@ def render_markdown(run: RunState) -> str:
     add(f"- Base URL: `{source.get('base_url')}`")
     add(f"- User-Agent: `{source.get('user_agent')}`")
     add(f"- Read window: last {data.get('options', {}).get('date_range', UNKNOWN)} days")
+    add(
+        "- Verification scan-age limit: "
+        f"{(data.get('options') or {}).get('verification_max_scan_age_hours', UNKNOWN)} hours"
+    )
     add(f"- Live Tenable reads: {truth.get('live_reads', UNKNOWN)}")
     control_plane = truth.get("control_plane") or {}
     for name, snapshot in control_plane.items():
@@ -296,15 +305,30 @@ def render_markdown(run: RunState) -> str:
             f"- KRI catalog: {_md(catalog.get('name'))} "
             f"v{_md(catalog.get('version'))} — {catalog.get('count')} definitions"
         )
+    advisory = v.get("advisory") or {}
+    if advisory:
+        provenance = advisory.get("provenance") or {}
+        add(
+            f"- Advisory: {_md(advisory.get('source'))} "
+            f"[{_md(provenance.get('status', 'provided'))}] — "
+            f"{_md(advisory.get('url'))}"
+        )
+        if provenance.get("retrieved_at"):
+            add(f"- Advisory retrieved: {_md(provenance.get('retrieved_at'))}")
+    if truth.get("advisory"):
+        add(f"- Advisory provenance: {_md(json.dumps(truth['advisory'], sort_keys=True))}")
     add("")
 
     add("## 3. Stage timeline")
     add("")
-    add("| Stage | Status | Finished | Summary | Record |")
-    add("|---|---|---|---|---|")
+    add("| Stage | Method | Kind | Gate | Status | Finished | Summary | Record |")
+    add("|---|---|---|---|---|---|---|---|")
     for stage, record in (data.get("stages") or {}).items():
+        contract = record.get("contract") or {}
         add(
-            f"| {_md(STAGE_LABELS.get(stage, record.get('name') or stage))} | {_md(record.get('status'))} | "
+            f"| {_md(STAGE_LABELS.get(stage, record.get('name') or stage))} | "
+            f"{_md(contract.get('methodology_stage'))} | {_md(contract.get('kind'))} | "
+            f"{_md(contract.get('approval_gate') or '—')} | {_md(record.get('status'))} | "
             f"{_md(record.get('finished_at'))} | {_md(record.get('summary'))} | "
             f"`{_md(record.get('data_ref'))}` |"
         )
@@ -317,7 +341,7 @@ def render_markdown(run: RunState) -> str:
         add("|---|---|---|")
         add(f"| CVE | {_md(v.get('id'))} | input |")
         add(f"| Title | {_md(v.get('title'))} | {_md(v.get('title_source'))} |")
-        add(f"| Published | {_md(v.get('published'))} | Tenable |")
+        add(f"| Published | {_md(v.get('published'))} | scanner findings / advisory |")
         add(f"| CVSS | {_md(_score(v.get('severity_cvss')))} | {_md(v.get('severity_source'))} |")
         add(f"| CVSS v3 vector | {_md(v.get('cvss3_vector'))} | Tenable |")
         add(f"| CVSS v2 vector | {_md(v.get('cvss2_vector'))} | Tenable |")
@@ -325,6 +349,26 @@ def render_markdown(run: RunState) -> str:
         add(f"| Patch available | {_md(_bool(v.get('patch_available'), 'yes', 'no'))} | Tenable plugin flags |")
         add(f"| Aliases | {_md(', '.join(v.get('aliases') or []) or UNKNOWN)} | Tenable references |")
         add(f"| Confidence | {_md(v.get('confidence'))} — {_md(v.get('confidence_reason'))} | engine |")
+        if advisory:
+            provenance = advisory.get("provenance") or {}
+            fixed = v.get("fixed_versions") or []
+            add(
+                f"| Advisory source | {_md(advisory.get('source'))} | "
+                f"{_md(provenance.get('status', 'provided'))} |"
+            )
+            add(
+                f"| Advisory URL | {_md(advisory.get('url'))} | "
+                f"retrieved {_md(provenance.get('retrieved_at', UNKNOWN))} |"
+            )
+            add(
+                f"| Advisory fixed versions | "
+                f"{_md(', '.join(str(item.get('fixed')) for item in fixed) or UNKNOWN)} | "
+                "advisory affected ranges |"
+            )
+            add(
+                f"| Advisory mitigations | {len(v.get('mitigation_steps') or [])} | "
+                "advisory, unverified in this environment |"
+            )
         add("")
         if v.get("patch_refs"):
             add("Patch references found in Tenable text: " + ", ".join(v["patch_refs"]) + ".")
@@ -486,6 +530,23 @@ def render_markdown(run: RunState) -> str:
         patch = plan.get("patch_path") or {}
         add(f"- Patch available: **{_bool(patch.get('available'), 'yes', 'no')}**")
         add(f"- Patch references: {_md(', '.join(patch.get('patch_refs') or []) or UNKNOWN)}")
+        fixed_versions = patch.get("fixed_versions") or []
+        if fixed_versions:
+            add(
+                "- Advisory fixed versions: "
+                + ", ".join(
+                    f"{item.get('product')} {item.get('fixed')} "
+                    f"({item.get('branch') or 'branch unknown'}, "
+                    f"{item.get('support') or 'support unknown'})"
+                    for item in fixed_versions
+                )
+            )
+        targets = patch.get("target_versions_by_asset") or {}
+        if targets:
+            add(
+                "- Verified target versions by asset: "
+                + ", ".join(f"{uuid}={version}" for uuid, version in targets.items())
+            )
         add(f"- Prerequisites: {_md(patch.get('prerequisites_note') or UNKNOWN)}")
         add(f"- Rollback: {_md(patch.get('rollback') or UNKNOWN)}")
         add(f"- Plan SHA-256: `{plan.get('plan_sha256')}`")
@@ -508,15 +569,26 @@ def render_markdown(run: RunState) -> str:
             add("### Workarounds")
             add("")
             for item in workarounds:
-                add(f"- {item.get('action')} — scope: {item.get('scope')}; verified: false.")
+                add(
+                    f"- {item.get('action')} — scope: {item.get('scope')}; "
+                    f"verified: {item.get('verified', False)}; "
+                    f"source: {item.get('source', UNKNOWN)}"
+                    + (
+                        f"; limitations: {item.get('limitations')}"
+                        if item.get("limitations")
+                        else ""
+                    )
+                )
             add("")
         add("### Per-asset path")
         add("")
-        add("| Asset | Path | Containment candidate | Reason | Owner |")
-        add("|---|---|---|---|---|")
+        add("| Asset | Path | Runtime | Target version | Containment candidate | Reason | Owner |")
+        add("|---|---|---|---|---|---|---|")
         for item in plan.get("per_asset") or []:
             add(
                 f"| {_md(item.get('hostname'))} | {_md(item.get('path'))} | "
+                f"{_md(item.get('runtime_product'))} {_md(item.get('runtime_version'))} | "
+                f"{_md(item.get('target_version'))} | "
                 f"{_md(_bool(item.get('containment_recommended'), 'yes', 'no'))} | "
                 f"{_md(item.get('containment_reason') or item.get('reason'))} | "
                 f"{_md(item.get('owner'))} / {_md(item.get('owner_team'))} |"
@@ -529,23 +601,7 @@ def render_markdown(run: RunState) -> str:
                 add(f"- {note}")
             add("")
 
-    add("## 10. Alerts")
-    add("")
-    if alerts:
-        add("| Severity | Code | Message | Assets | Sink | Receipt |")
-        add("|---|---|---|---|---|---|")
-        for alert in alerts:
-            add(
-                f"| {_md(alert.get('severity'))} | {_md(alert.get('code'))} | {_md(alert.get('message'))} | "
-                f"{_md(', '.join(alert.get('assets') or []) or UNKNOWN)} | "
-                f"{_md(alert.get('destination'))} | {_md(alert.get('receipt_id'))} |"
-            )
-        add("")
-    else:
-        add("No alert threshold was crossed, or the run has not reached exposure yet.")
-        add("")
-
-    add("## 11. Ticket and approvals")
+    add("## 10. Ticket and approvals")
     add("")
     if ticket:
         add(
@@ -568,7 +624,7 @@ def render_markdown(run: RunState) -> str:
         add("No approval has been recorded. The run is read-only.")
         add("")
 
-    add("## 12. Containment")
+    add("## 11. Containment")
     add("")
     if containment:
         add("| Event | Asset | MAC | Action | Status | Policy | VLAN | Approver | Simulated | Reason |")
@@ -585,7 +641,47 @@ def render_markdown(run: RunState) -> str:
         add("No containment action has been executed. Containment requires an approval.")
         add("")
 
-    add("## 13. Verification")
+    add("## 12. Remediation execution")
+    add("")
+    patch_execution = data.get("patch_execution") or {}
+    if patch_execution:
+        add(
+            f"Connector: **{_md(patch_execution.get('connector') or UNKNOWN)}**; "
+            f"status: **{_md(patch_execution.get('status') or UNKNOWN)}**; "
+            f"simulated: **{_md(patch_execution.get('simulated'))}**; "
+            f"submitted: {patch_execution.get('submitted', 0)}; "
+            f"skipped: {len(patch_execution.get('skipped') or [])}."
+        )
+        add("")
+        jobs = patch_execution.get("jobs") or []
+        if jobs:
+            add("| Job | Asset | Package | Current | Target | Status | Touched host |")
+            add("|---|---|---|---|---|---|---|")
+            for job in jobs:
+                add(
+                    f"| {_md(job.get('job_id'))} | {_md(job.get('hostname'))} | "
+                    f"{_md(job.get('package'))} | {_md(job.get('current_version'))} | "
+                    f"{_md(job.get('target_version'))} | {_md(job.get('status'))} | "
+                    f"{_md(job.get('touched_host'))} |"
+                )
+            add("")
+        skipped = patch_execution.get("skipped") or []
+        if skipped:
+            add("**Skipped jobs (no invented target version):**")
+            add("")
+            for item in skipped:
+                add(f"- {_md(item.get('hostname'))} — {_md(item.get('reason'))}")
+            add("")
+        add(
+            "A submitted job is not a remediation claim. Verification below is the "
+            "only accepted evidence that the vulnerability is gone."
+        )
+        add("")
+    else:
+        add("No patch execution has been recorded. A plan is not an execution.")
+        add("")
+
+    add("## 13. Verification and recovery")
     add("")
     if verification:
         add(
@@ -596,13 +692,15 @@ def render_markdown(run: RunState) -> str:
             f"infection: {_md(verification.get('infection_status'))}."
         )
         add("")
-        add("| Asset | Before | After | Status | Infection | Last scan | Containment |")
-        add("|---|---|---|---|---|---|---|")
+        add("| Asset | Before | After | Status | Infection | Last scan | Scan age (h) | Fresh | Containment |")
+        add("|---|---|---|---|---|---|---|---|---|")
         for item in verification.get("assets") or []:
+            evidence = item.get("evidence") or {}
             add(
                 f"| {_md(item.get('hostname'))} | {_md(item.get('before_affected'))} | "
                 f"{_md(item.get('after_affected'))} | {_md(item.get('status'))} | "
                 f"{_md(item.get('infection_status'))} | {_md(item.get('last_scan'))} | "
+                f"{_md(evidence.get('scan_age_hours'))} | {_md(evidence.get('scan_fresh'))} | "
                 f"{_md(item.get('contained'))} |"
             )
         add("")
@@ -659,7 +757,7 @@ def render_markdown(run: RunState) -> str:
 
     add("## 17. What this run did not do")
     add("")
-    add("- It did not push a patch, reboot a host, or change an endpoint itself.")
+    add("- It did not deliver or reboot a host, or execute a patch on an endpoint.")
     add("- It did not execute containment without a recorded approval.")
     add("- It did not claim a compensating control is verified.")
     add("- It did not claim a host is clean without an EDR signal; unknown remains unknown.")
@@ -735,6 +833,191 @@ details{margin:8px 0}summary{cursor:pointer;color:var(--accent)}
 section,.tile,.callout{box-shadow:none;break-inside:avoid}header{break-after:avoid}}
 """
 
+def render_executive_summary(run: RunState) -> str:
+    """One-page management report generated for every finalized run."""
+    data = run.to_dict()
+    v = data.get("vulnerability") or {}
+    exposure = data.get("exposure") or []
+    plan = data.get("plan") or {}
+    detections = data.get("kri_detections") or []
+    approvals = data.get("approvals") or []
+    containment = data.get("containment") or []
+    patch = data.get("patch_execution") or {}
+    verification = data.get("verification") or {}
+    truth = data.get("truthfulness") or {}
+    source = data.get("source") or {}
+
+    tier_counts = {tier: 0 for tier in TIER_ORDER}
+    for asset in exposure:
+        tier = (asset.get("risk") or {}).get("tier") or "unknown"
+        tier_counts[tier] = tier_counts.get(tier, 0) + 1
+    kri_counts = {
+        status: sum(1 for item in detections if item.get("status") == status)
+        for status in ("detected", "not_detected", "unknown", "not_applicable")
+    }
+    kri_detected = {
+        kri_id: sum(
+            1
+            for item in detections
+            if item.get("kri_id") == kri_id and item.get("status") == "detected"
+        )
+        for kri_id in sorted({str(item.get("kri_id")) for item in detections})
+    }
+    plan_items = plan.get("per_asset") or []
+    path_counts = {
+        path: sum(1 for item in plan_items if item.get("path") == path)
+        for path in ("patch", "compensate", "isolate")
+    }
+    target_assets = sum(1 for item in plan_items if item.get("target_version"))
+    containment_candidates = sum(
+        1 for item in plan_items if item.get("containment_recommended")
+    )
+    isolated = sum(1 for item in containment if item.get("status") == "isolated")
+    blocked = sum(1 for item in containment if item.get("status") == "blocked")
+    failed = sum(1 for item in containment if item.get("status") == "failed")
+    restored = sum(
+        1
+        for item in containment
+        if item.get("action") == "restore" and item.get("status") == "restored"
+    )
+    unknown_total = sum(
+        len(record.get("unknowns") or [])
+        for record in (data.get("stages") or {}).values()
+    )
+    top_assets = sorted(
+        exposure,
+        key=lambda item: (item.get("risk") or {}).get("score") or 0,
+        reverse=True,
+    )[:5]
+
+    lines: list[str] = []
+    add = lines.append
+    add("# Executive summary for management")
+    add("")
+    add(f"**Vulnerability:** {_md(v.get('id') or run.target.get('value'))} — {_md(v.get('title'))}")
+    add(f"**Run:** `{run.run_id}`  ")
+    add(f"**Status:** {STATUS_TEXT.get(run.status, run.status)} (`{run.status}`)  ")
+    add(f"**Source:** {_md(source.get('product') or source.get('name'))} "
+        f"(live reads: {_md(truth.get('live_reads'))})  ")
+    add(f"**Created / updated:** {_md(run.created_at)} / {_md(run.updated_at)}")
+    add("")
+    add("## Bottom line")
+    add("")
+    if exposure:
+        add(
+            f"{len(exposure)} affected asset(s): "
+            + ", ".join(f"{tier_counts[tier]} {tier}" for tier in TIER_ORDER if tier_counts.get(tier))
+            + f". KRI register: {kri_counts['detected']} detected, "
+            f"{kri_counts['unknown']} unknown, {kri_counts['not_detected']} clear, "
+            f"{kri_counts['not_applicable']} not applicable."
+        )
+    else:
+        add("No affected assets were resolved; no remediation decision is supported.")
+    add(
+        f"Remediation plan: {path_counts['patch']} patch, "
+        f"{path_counts['compensate']} compensate, {path_counts['isolate']} isolate; "
+        f"verified target version on {target_assets} asset(s). "
+        f"Containment candidates: {containment_candidates}."
+    )
+    if containment:
+        add(
+            f"Containment executed: {isolated} isolated, {blocked} blocked, {failed} failed; "
+            f"{restored} restored after verification."
+        )
+    if patch:
+        add(
+            f"Patch execution: {patch.get('status')} — "
+            f"{patch.get('submitted', 0)} submitted, "
+            f"{len(patch.get('skipped') or [])} skipped; "
+            f"simulated={patch.get('simulated')}."
+        )
+    if verification:
+        add(
+            f"Verification: {verification.get('remediated_count', 0)} remediated, "
+            f"{verification.get('still_affected_count', 0)} still affected, "
+            f"{verification.get('unknown_count', 0)} unknown; "
+            f"infection status: {verification.get('infection_status', 'unknown')}."
+        )
+    add("")
+    add("## Numbers at a glance")
+    add("")
+    add("| Metric | Value |")
+    add("|---|---|")
+    rows = [
+        ("Affected assets", len(exposure)),
+        ("Critical / high / medium / low", f"{tier_counts['critical']} / {tier_counts['high']} / {tier_counts['medium']} / {tier_counts['low']}"),
+        ("KRI detected / clear / unknown / n/a", f"{kri_counts['detected']} / {kri_counts['not_detected']} / {kri_counts['unknown']} / {kri_counts['not_applicable']}"),
+        ("Plan paths patch / compensate / isolate", f"{path_counts['patch']} / {path_counts['compensate']} / {path_counts['isolate']}"),
+        ("Assets with a verified target version", target_assets),
+        ("Containment candidates", containment_candidates),
+        ("Containment isolated / blocked / failed", f"{isolated} / {blocked} / {failed}"),
+        ("Restored after verification", restored),
+        ("Patch jobs submitted / skipped", f"{patch.get('submitted', 0)} / {len(patch.get('skipped') or [])}"),
+        ("Verification remediated / still affected / unknown", f"{verification.get('remediated_count', 0)} / {verification.get('still_affected_count', 0)} / {verification.get('unknown_count', 0)}"),
+        ("Approval gates recorded", len(approvals)),
+        ("Explicit unknown fields recorded", unknown_total),
+    ]
+    for label, value in rows:
+        add(f"| {label} | {value} |")
+    add("")
+    add("## Risk and control insights")
+    add("")
+    if top_assets:
+        add("**Highest-risk assets**")
+        add("")
+        add("| Asset | KRI score | Tier | Owner |")
+        add("|---|---|---|---|")
+        for asset in top_assets:
+            ref = asset.get("asset") or {}
+            add(
+                f"| {_md(_asset_name(ref))} | {_md(_score((asset.get('risk') or {}).get('score')))} | "
+                f"{_md((asset.get('risk') or {}).get('tier'))} | "
+                f"{_md((asset.get('owner') or {}).get('owner'))} |"
+            )
+        add("")
+    detected_bits = ", ".join(
+        f"{kri_id} x{count}" for kri_id, count in kri_detected.items() if count
+    )
+    add(f"- **KRI detections:** {detected_bits or 'none'}.")
+    add(
+        f"- **Control confidence:** {kri_counts['unknown']} KRI evaluation(s) are unknown. "
+        "Unknown is not clear; a control gap or missing connector is driving the gap."
+    )
+    add(
+        f"- **Remediation readiness:** {target_assets} of {len(plan_items)} planned asset(s) "
+        "have a verified target version. A patch gate will skip the rest."
+    )
+    add(
+        f"- **Containment and recovery:** {isolated} isolated, {blocked} blocked; "
+        f"{restored} restored. Restore is only eligible after fresh verification and no infection."
+    )
+    add("")
+    add("## Decisions and next actions")
+    add("")
+    actions = data.get("next_actions") or []
+    if actions:
+        for action in actions:
+            add(f"- {action}")
+    else:
+        add("- No pending action is recorded.")
+    add("")
+    add("## What this report does not prove")
+    add("")
+    add("- It does not prove that a patch was delivered or that a host was rebooted.")
+    add("- It does not turn an unknown control state into a clear state.")
+    add("- It does not prove real-world exploitability beyond the scanner's claim.")
+    if not truth.get("live_reads"):
+        add("- This run used simulated scanner/control-plane fixtures; the report is not production evidence.")
+    add("")
+    add("## Evidence")
+    add("")
+    add(f"- Markdown report: `report.md`")
+    add(f"- HTML report: `report.html`")
+    add(f"- SHA-256 manifest: `manifest.json` / `manifest.sha256`")
+    add(f"- Run directory: `runs/{run.run_id}/`")
+    add("")
+    return "\n".join(lines)
+
 
 def _h(value: Any) -> str:
     return html.escape(_text(value))
@@ -804,7 +1087,6 @@ def render_html(run: RunState) -> str:
     containment = data.get("containment") or []
     verification = data.get("verification") or {}
     ticket = data.get("ticket") or {}
-    alerts = data.get("alerts") or []
     truth = data.get("truthfulness") or {}
     source = data.get("source") or {}
 
@@ -823,12 +1105,28 @@ def render_html(run: RunState) -> str:
     status = str(run.status)
     status_class = (
         "critical"
-        if status in {"escalated_to_soc", "remediation_rejected"}
+        if status in {"escalated", "remediation_rejected", "stage_failed"}
         else "high"
         if "awaiting" in status
         else "low"
         if status in {"verified_remediated", "restored", "complete"}
         else "unknown"
+    )
+
+    live_reads = bool(truth.get("live_reads"))
+    callout = (
+        '<div class="callout">'
+        "<strong>Read this first.</strong> "
+        + (
+            "Scanner reads in this run are live."
+            if live_reads
+            else "Scanner reads in this run are <strong>simulated fixtures</strong>; "
+            "no scanner was contacted."
+        )
+        + " Ticketing, NAC, EDR and patch-management actions are file-backed "
+        "simulations unless the run records a live connector. No host was patched "
+        "by this engine; patch jobs are submissions, not proof of remediation."
+        "</div>"
     )
 
     headline = v.get("title") or "Vulnerability run"
@@ -844,13 +1142,6 @@ def render_html(run: RunState) -> str:
   <div><span class="pill {status_class}">{_h(STATUS_TEXT.get(status, status))}</span></div>
 </header>
 """
-    callout = """
-<div class="callout">
-  <strong>Read this first.</strong> Tenable reads in this run are live. ITSM, NAC, SIEM and EDR
-  actions are file-backed simulations unless the run records a live connector. No patch was
-  pushed and no containment executed without a recorded approval.
-</div>
-"""
     detected_kri = sum(
         1
         for item in (data.get("kri_detections") or [])
@@ -859,7 +1150,7 @@ def render_html(run: RunState) -> str:
     tiles = f"""
 <div class="grid">
   <div class="tile"><div class="label">Affected assets</div><div class="value">{len(exposure)}</div><div class="note">{tiers.get('critical',0)} critical · {tiers.get('high',0)} high KRI</div></div>
-  <div class="tile"><div class="label">KRI detections</div><div class="value">{detected_kri}</div><div class="note">KRI-01 … KRI-07</div></div>
+  <div class="tile"><div class="label">KRI detections</div><div class="value">{detected_kri}</div><div class="note">KRI-01 … KRI-09</div></div>
   <div class="tile"><div class="label">Top KRI</div><div class="value">{_score((riskiest or {}).get('risk', {}).get('score')).replace('.0','')}</div><div class="note">{_h((riskiest or {}).get('asset', {}).get('hostname') or '—')}</div></div>
   <div class="tile"><div class="label">Contained</div><div class="value">{contained}</div><div class="note">approval-gated NAC events</div></div>
   <div class="tile"><div class="label">Verified remediated</div><div class="value">{remediated}</div><div class="note">from a fresh Tenable query</div></div>
@@ -873,6 +1164,10 @@ def render_html(run: RunState) -> str:
         ["Base URL", source.get("base_url")],
         ["User-Agent", source.get("user_agent")],
         ["Window", f"last {data.get('options', {}).get('date_range', UNKNOWN)} days"],
+        [
+            "Verification scan-age limit",
+            f"{(data.get('options') or {}).get('verification_max_scan_age_hours', UNKNOWN)} hours",
+        ],
         ["Live Tenable reads", str(truth.get("live_reads", UNKNOWN))],
     ]
     for name, snapshot in (truth.get("control_plane") or {}).items():
@@ -891,25 +1186,42 @@ def render_html(run: RunState) -> str:
                 f"{catalog.get('name')} v{catalog.get('version')} · {catalog.get('count')} definitions",
             ]
         )
+    advisory = v.get("advisory") or {}
+    if advisory:
+        provenance_rows.append(
+            [
+                "Advisory",
+                f"{advisory.get('source')} "
+                f"[{(advisory.get('provenance') or {}).get('status', 'provided')}] · "
+                f"{advisory.get('url')}",
+            ]
+        )
     provenance = _table(["Item", "Value"], provenance_rows)
 
     timeline_rows = []
     for stage, record in (data.get("stages") or {}).items():
+        contract = record.get("contract") or {}
         timeline_rows.append(
             [
                 STAGE_LABELS.get(stage, record.get("name") or stage),
+                contract.get("methodology_stage"),
+                contract.get("kind"),
+                contract.get("approval_gate") or "—",
                 record.get("status"),
                 record.get("finished_at"),
                 record.get("summary"),
                 record.get("data_ref"),
             ]
         )
-    timeline = _table(["Stage", "Status", "Finished", "Summary", "Record"], timeline_rows)
+    timeline = _table(
+        ["Stage", "Method", "Kind", "Gate", "Status", "Finished", "Summary", "Record"],
+        timeline_rows,
+    )
 
     intake_rows = [
         ["CVE", v.get("id"), "input"],
         ["Title", v.get("title"), v.get("title_source")],
-        ["Published", v.get("published"), "Tenable"],
+        ["Published", v.get("published"), "scanner findings / advisory"],
         ["CVSS", _score(v.get("severity_cvss")), v.get("severity_source")],
         ["CVSS v3 vector", v.get("cvss3_vector"), "Tenable"],
         ["CVSS v2 vector", v.get("cvss2_vector"), "Tenable"],
@@ -918,6 +1230,33 @@ def render_html(run: RunState) -> str:
         ["Aliases", ", ".join(v.get("aliases") or []) or UNKNOWN, "Tenable references"],
         ["Confidence", f"{v.get('confidence')} — {v.get('confidence_reason')}", "engine"],
     ]
+    if advisory:
+        provenance_meta = advisory.get("provenance") or {}
+        fixed = v.get("fixed_versions") or []
+        intake_rows.extend(
+            [
+                [
+                    "Advisory source",
+                    advisory.get("source"),
+                    provenance_meta.get("status", "provided"),
+                ],
+                [
+                    "Advisory URL",
+                    advisory.get("url"),
+                    f"retrieved {provenance_meta.get('retrieved_at', UNKNOWN)}",
+                ],
+                [
+                    "Advisory fixed versions",
+                    ", ".join(str(item.get("fixed")) for item in fixed) or UNKNOWN,
+                    "advisory affected ranges",
+                ],
+                [
+                    "Advisory mitigations",
+                    str(len(v.get("mitigation_steps") or [])),
+                    "advisory, unverified in this environment",
+                ],
+            ]
+        )
     intake = _table(["Field", "Value", "Source"], intake_rows)
     if v.get("conflicts"):
         intake += "<h3>Source conflicts</h3><ul>" + "".join(
@@ -1070,7 +1409,35 @@ def render_html(run: RunState) -> str:
         plan_html += (
             f"<p><strong>Patch available:</strong> {_h(_bool(patch.get('available'), 'yes', 'no'))}<br>"
             f"<strong>References:</strong> {_h(', '.join(patch.get('patch_refs') or []) or UNKNOWN)}<br>"
-            f"<strong>Prerequisites:</strong> {_h(patch.get('prerequisites_note') or UNKNOWN)}<br>"
+            + (
+                "<strong>Advisory fixed versions:</strong> "
+                + _h(
+                    ", ".join(
+                        f"{item.get('product')} {item.get('fixed')} "
+                        f"({item.get('branch') or 'branch unknown'}, "
+                        f"{item.get('support') or 'support unknown'})"
+                        for item in patch.get("fixed_versions") or []
+                    )
+                )
+                + "<br>"
+                if patch.get("fixed_versions")
+                else ""
+            )
+            + (
+                "<strong>Verified target versions:</strong> "
+                + _h(
+                    ", ".join(
+                        f"{uuid}={version}"
+                        for uuid, version in (
+                            patch.get("target_versions_by_asset") or {}
+                        ).items()
+                    )
+                )
+                + "<br>"
+                if patch.get("target_versions_by_asset")
+                else ""
+            )
+            + f"<strong>Prerequisites:</strong> {_h(patch.get('prerequisites_note') or UNKNOWN)}<br>"
             f"<strong>Rollback:</strong> {_h(patch.get('rollback') or UNKNOWN)}<br>"
             f"<strong>Plan SHA-256:</strong> <code>{_h(plan.get('plan_sha256'))}</code></p>"
         )
@@ -1096,11 +1463,14 @@ def render_html(run: RunState) -> str:
                 for item in plan["workarounds"]
             ) + "</ul>"
         plan_html += "<h3>Per-asset path</h3>" + _table(
-            ["Asset", "Path", "Containment", "Reason", "Owner"],
+            ["Asset", "Path", "Runtime", "Target", "Containment", "Reason", "Owner"],
             [
                 [
                     item.get("hostname"),
                     item.get("path"),
+                    f"{item.get('runtime_product') or UNKNOWN} "
+                    f"{item.get('runtime_version') or ''}".strip(),
+                    item.get("target_version") or UNKNOWN,
                     _bool(item.get("containment_recommended"), "yes", "no"),
                     item.get("containment_reason") or item.get("reason"),
                     f"{item.get('owner')} / {item.get('owner_team')}",
@@ -1112,21 +1482,6 @@ def render_html(run: RunState) -> str:
             plan_html += "<h3>Plan notes</h3><ul>" + "".join(
                 f"<li>{_h(note)}</li>" for note in plan["notes"]
             ) + "</ul>"
-
-    alert_html = _table(
-        ["Severity", "Code", "Message", "Assets", "Sink", "Receipt"],
-        [
-            [
-                item.get("severity"),
-                item.get("code"),
-                item.get("message"),
-                ", ".join(item.get("assets") or []) or UNKNOWN,
-                item.get("destination"),
-                item.get("receipt_id"),
-            ]
-            for item in alerts
-        ],
-    ) if alerts else "<p>No alert threshold was crossed.</p>"
 
     ticket_html = ""
     if ticket:
@@ -1172,6 +1527,44 @@ def render_html(run: RunState) -> str:
         ],
     ) if containment else "<p>No containment action has been executed.</p>"
 
+    patch_execution = data.get("patch_execution") or {}
+    if patch_execution:
+        patch_execution_html = (
+            f"<p>Connector <strong>{_h(patch_execution.get('connector') or UNKNOWN)}</strong> · "
+            f"status <strong>{_h(patch_execution.get('status') or UNKNOWN)}</strong> · "
+            f"simulated <strong>{_h(patch_execution.get('simulated'))}</strong> · "
+            f"submitted {_h(patch_execution.get('submitted', 0))} · "
+            f"skipped {len(patch_execution.get('skipped') or [])}.</p>"
+        )
+        jobs = patch_execution.get("jobs") or []
+        if jobs:
+            patch_execution_html += _table(
+                ["Job", "Asset", "Package", "Current", "Target", "Status", "Touched host"],
+                [
+                    [
+                        item.get("job_id"),
+                        item.get("hostname"),
+                        item.get("package"),
+                        item.get("current_version"),
+                        item.get("target_version"),
+                        item.get("status"),
+                        item.get("touched_host"),
+                    ]
+                    for item in jobs
+                ],
+            )
+        if patch_execution.get("skipped"):
+            patch_execution_html += "<h3>Skipped jobs (no invented target version)</h3><ul>" + "".join(
+                f"<li>{_h(item.get('hostname'))} — {_h(item.get('reason'))}</li>"
+                for item in patch_execution["skipped"]
+            ) + "</ul>"
+        patch_execution_html += (
+            "<p>A submitted job is not a remediation claim. Verification is the "
+            "only accepted evidence that the vulnerability is gone.</p>"
+        )
+    else:
+        patch_execution_html = "<p>No patch execution has been recorded. A plan is not an execution.</p>"
+
     verification_html = ""
     if verification:
         verification_html += (
@@ -1182,7 +1575,7 @@ def render_html(run: RunState) -> str:
             f"infection {_h(verification.get('infection_status'))}.</p>"
         )
         verification_html += _table(
-            ["Asset", "Before", "After", "Status", "Infection", "Last scan", "Containment"],
+            ["Asset", "Before", "After", "Status", "Infection", "Last scan", "Scan age (h)", "Fresh", "Containment"],
             [
                 [
                     item.get("hostname"),
@@ -1191,6 +1584,8 @@ def render_html(run: RunState) -> str:
                     item.get("status"),
                     item.get("infection_status"),
                     item.get("last_scan"),
+                    (item.get("evidence") or {}).get("scan_age_hours"),
+                    (item.get("evidence") or {}).get("scan_fresh"),
                     str(item.get("contained")),
                 ]
                 for item in verification.get("assets") or []
@@ -1242,11 +1637,11 @@ def render_html(run: RunState) -> str:
     )
     not_done = """
 <ul>
-  <li>It did not push a patch, reboot a host, or change an endpoint itself.</li>
+  <li>It did not deliver or reboot a host, or execute a patch on an endpoint.</li>
   <li>It did not execute containment without a recorded approval.</li>
   <li>It did not claim a compensating control is verified.</li>
   <li>It did not claim a host is clean without an EDR signal; unknown remains unknown.</li>
-  <li>It did not invent asset owners, agent versions, feed ages, or patch schedules.</li>
+  <li>It did not invent asset owners, agent versions, feed ages, patch targets, or patch schedules.</li>
   {limits}
 </ul>
 """.format(limits=limits)
@@ -1269,10 +1664,10 @@ def render_html(run: RunState) -> str:
             "kri",
         ),
         _section("Remediation plan", plan_html or "<p>No plan yet.</p>", "plan"),
-        _section("Alerts", alert_html, "alerts"),
         _section("Ticket and approvals", ticket_html, "ticket"),
         _section("Containment", containment_html, "containment"),
-        _section("Verification", verification_html, "verification"),
+        _section("Remediation execution", patch_execution_html, "patch-execution"),
+        _section("Verification and recovery", verification_html, "verification"),
         _section("Open questions and unknowns", unknowns_html, "unknowns"),
         _section("KRI coverage", coverage_html, "coverage"),
         _section("Evidence integrity", evidence_html, "evidence"),

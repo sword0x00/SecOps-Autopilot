@@ -15,6 +15,7 @@ from .util import UNKNOWN, utc_now
 
 # Run lifecycle. State-changing steps are only reachable through an approval.
 STATUS_INTAKE_FAILED = "intake_failed"
+STATUS_STAGE_FAILED = "stage_failed"
 STATUS_NO_EXPOSURE = "no_exposure_found"
 STATUS_AWAITING_TICKET_APPROVAL = "awaiting_ticket_approval"
 STATUS_AWAITING_REMEDIATION_APPROVAL = "awaiting_remediation_approval"
@@ -24,7 +25,7 @@ STATUS_CONTAINMENT_EXECUTED = "containment_executed"
 STATUS_AWAITING_VERIFICATION = "awaiting_verification"
 STATUS_VERIFIED = "verified_remediated"
 STATUS_VERIFICATION_OPEN = "verification_open"
-STATUS_ESCALATED = "escalated_to_soc"
+STATUS_ESCALATED = "escalated"
 STATUS_RESTORED = "restored"
 STATUS_COMPLETE = "complete"
 
@@ -39,6 +40,7 @@ TERMINAL_STATUSES = {
 GATE_TICKET = "ticket"
 GATE_REMEDIATION = "remediation"
 GATE_CONTAINMENT = "containment"
+GATE_PATCH = "patch"
 GATE_RESTORE = "restore"
 
 STAGE_LABELS = {
@@ -47,13 +49,15 @@ STAGE_LABELS = {
     "control_check": "Control check",
     "kri_register": "KRI register",
     "kri_scoring": "KRI scoring",
-    "alerting": "Alerting",
     "remediation": "Remediation planning",
+    "remediation_planning": "Remediation planning",
     "ticket": "Ticket",
     "remediation_approval": "Remediation approval",
     "containment": "Containment",
-    "verification": "Verification",
-    "restore": "Restore",
+    "patch_execution": "Remediation execution",
+    "verification": "Verification and recovery — verification",
+    "restore": "Verification and recovery — restore",
+    "recovery": "Verification and recovery — restore",
     "evidence": "Evidence",
 }
 
@@ -174,6 +178,10 @@ class VulnerabilityRecord(_Serializable):
     confidence_reason: str = ""
     conflicts: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+    advisory: dict[str, Any] | None = None
+    fixed_versions: list[dict[str, Any]] = field(default_factory=list)
+    mitigation_steps: list[dict[str, Any]] = field(default_factory=list)
+    provenance: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -243,7 +251,7 @@ class OwnerInfo(_Serializable):
     owner: str = UNKNOWN
     team: str = UNKNOWN
     email: str | None = None
-    source: str = "no CMDB mapping configured"
+    source: str = "no asset inventory mapping configured"
     match: str | None = None
 
 
@@ -298,6 +306,10 @@ class AssetPlan(_Serializable):
     kri_score: float
     kri_tier: str
     kri_ids: list[str] = field(default_factory=list)
+    runtime_product: str | None = None
+    runtime_version: str | None = None
+    target_version: str | None = None
+    package: str | None = None
 
 
 @dataclass
@@ -402,6 +414,9 @@ class StageRecord(_Serializable):
     unknowns: list[dict[str, str]] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     source_calls: list[dict[str, Any]] = field(default_factory=list)
+    contract: dict[str, Any] = field(default_factory=dict)
+    attempt: int = 1
+    duration_ms: float | None = None
 
 
 @dataclass
@@ -421,10 +436,10 @@ class RunState(_Serializable):
     ticket: dict[str, Any] | None = None
     approvals: list[dict[str, Any]] = field(default_factory=list)
     containment: list[dict[str, Any]] = field(default_factory=list)
+    patch_execution: dict[str, Any] | None = None
     verification: dict[str, Any] | None = None
     stages: dict[str, dict[str, Any]] = field(default_factory=dict)
     events: list[dict[str, Any]] = field(default_factory=list)
-    alerts: list[dict[str, Any]] = field(default_factory=list)
     artifacts: dict[str, str] = field(default_factory=dict)
     next_actions: list[str] = field(default_factory=list)
     truthfulness: dict[str, Any] = field(default_factory=dict)

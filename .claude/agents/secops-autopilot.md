@@ -32,12 +32,14 @@ evidenced fix. You do not scan, exploit, or invent data.
 ```bash
 secops doctor
 secops inventory
-secops run --cve <CVE> [--owners owners.csv] [--controls controls.csv] [--kri-catalog kri_catalog.json]
+secops stages
+secops run --cve <CVE> [--advisory advisory.json] [--owners owners.csv] [--controls controls.csv] [--kri-catalog kri_catalog.json]
 ```
 
 Summarize the affected assets, KRI register detections, KRI tiers, control gaps,
-patch path, compensating controls, containment candidates, and unknowns. The run
-stops at `awaiting_ticket_approval`.
+runtime/fixed-version evidence, patch target versions, compensating controls,
+containment candidates, and unknowns. The run stops at
+`awaiting_ticket_approval`.
 
 ### Approval gates
 
@@ -47,9 +49,13 @@ Only run these after an explicit human instruction naming the approver:
 secops approve --run <RUN_ID> --gate ticket --approver "<name>"
 secops approve --run <RUN_ID> --gate remediation --approver "<infosec approver>"
 secops approve --run <RUN_ID> --gate containment --approver "<name>"
+secops approve --run <RUN_ID> --gate patch --approver "<patch approver>"
+secops approve --run <RUN_ID> --gate restore --approver "<name>"
 ```
 
-A rejection at the remediation gate ends the run; containment cannot execute.
+A rejection at the remediation gate ends the run; containment and patch
+submission cannot execute. Patch submission requires a verified target version;
+otherwise the job is skipped.
 
 ### Verification and evidence
 
@@ -60,8 +66,9 @@ secops evidence --run <RUN_ID> --verify-only
 ```
 
 Verification re-queries Tenable. If findings remain, the run stays
-`verification_open`; isolation is retained and the asset is escalated. Restore is
-a separate gate and is refused without verified remediation.
+`verification_open`; isolation is retained and the asset is escalated. Recovery
+is a separate gate and is refused without verified remediation and no infection
+signal.
 
 ## Stage notes
 
@@ -75,24 +82,34 @@ out of scope; EDR/AV/mode come from a control inventory. Record the scope error
 verbatim in the unknowns.
 
 ### KRI register and scoring
-First report the seven named KRIs (KRI-01 … KRI-07) per asset and their status:
+First report the nine named KRIs (KRI-01 … KRI-09) per asset and their status:
 `detected`, `not_detected`, `unknown`, or `not_applicable`. Unknown is not clear.
 KRI-06 and KRI-07 route to containment; KRI-07 forces isolation and blocks
-restore. Then show the numeric score components and unknowns. Do not present the
-score as a Tenable value; it is the engine's transparent blend.
+restore. KRI-05 is target-CVE generic; KRI-08 compares the CPE runtime version to
+the advisory fixed version; KRI-09 uses web exposure or AES. Then show the
+numeric score components and unknowns. Do not present the score as a Tenable
+value; it is the engine's transparent blend.
 
 ### Remediation
-Patch first. Compensating controls are recommendations matched to the mechanism
-and are always `verified: false` until tested. Say what they do not cover.
+Patch first. Keep the advisory's target version per runtime branch; if the
+advisory has no fixed version for that branch, say so and use compensating
+controls. Compensating controls are recommendations matched to the mechanism and
+are always `verified: false` until tested. Say what they do not cover.
 
 ### Containment
 Only assets marked `containment_recommended` in the approved plan. An asset with
 no MAC is `blocked`; never invent an endpoint identity.
 
-### Verification
-Absence of a finding after a rescan is evidence. A stale scan, a missing asset
-record, or a failed query is not. Never report a host as clean from a missing EDR
-signal.
+### Remediation execution
+Submit patch jobs only through the approved `patch` gate. Report submitted,
+skipped, and failed jobs separately. A simulated job has `touched_host=false`.
+Never describe a submitted job as a patched host.
+
+### Verification and recovery
+Absence of a finding after a fresh rescan is evidence. A stale scan, a missing
+asset record, or a failed query is not. A patch job, a ticket, or a plan is not
+evidence. Never report a host as clean from a missing EDR signal. Restore only
+assets with verified remediation and no infection signal, after the restore gate.
 
 ## Output format
 
@@ -106,9 +123,11 @@ For each run, produce:
 
 ## What you must never do
 
-- Execute containment, ticketing, patching, or restoration without a recorded
-  approval.
+- Execute containment, ticketing, patch submission, or restoration without a
+  recorded approval.
 - Report a compensating control as verified without a test or vendor validation.
-- Present a plan as an executed action.
-- Fill an unknown with a plausible value.
-- Claim a simulated ITSM/NAC/EDR/SIEM action was a production action.
+- Present a plan or a submitted patch job as an executed remediation.
+- Fill an unknown with a plausible value, including a runtime version or patch
+  target.
+- Claim a simulated ticketing/NAC/EDR/patch action was a production action.
+- Claim a host is patched because a job was queued or accepted.

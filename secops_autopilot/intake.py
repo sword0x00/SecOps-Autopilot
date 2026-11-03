@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from .advisory import merge_advisory
 from .errors import IntakeError
 from .models import Finding, PluginHit, SourceRef, VulnerabilityRecord
 from .scoring import cisa_known_exploited, exploit_signals
@@ -114,6 +115,7 @@ def build_vulnerability(
     sources: list[SourceRef],
     *,
     date_range: int,
+    advisory: dict[str, Any] | None = None,
 ) -> VulnerabilityRecord:
     target = normalize_cve(cve)
     selected, excluded = _target_findings(target, findings)
@@ -225,33 +227,44 @@ def build_vulnerability(
             )
         ]
 
-    return VulnerabilityRecord(
-        id=target,
-        title=title,
-        title_source=title_source,
-        aliases=dedupe(aliases),
-        published=published,
-        severity_cvss=severity_cvss,
-        severity_source=severity_source,
-        cvss3_base=cvss3,
-        cvss3_vector=cvss3_vector,
-        cvss2_base=cvss2,
-        cvss2_vector=cvss2_vector,
-        exploited_in_wild=exploited_in_wild,
-        exploit_signals=signals,
-        patch_available=patch_available,
-        patch_refs=patch_refs,
-        affected_products=products,
-        cpe=list(cpes),
-        plugin_hits=hits,
-        affected_asset_count=len({f.asset.uuid for f in selected}),
-        affected_finding_count=len(selected),
-        sources=sources,
-        confidence=confidence,
-        confidence_reason=confidence_reason,
-        conflicts=conflicts,
-        notes=notes,
+    return _merge_if_advisory(
+        VulnerabilityRecord(
+            id=target,
+            title=title,
+            title_source=title_source,
+            aliases=dedupe(aliases),
+            published=published,
+            severity_cvss=severity_cvss,
+            severity_source=severity_source,
+            cvss3_base=cvss3,
+            cvss3_vector=cvss3_vector,
+            cvss2_base=cvss2,
+            cvss2_vector=cvss2_vector,
+            exploited_in_wild=exploited_in_wild,
+            exploit_signals=signals,
+            patch_available=patch_available,
+            patch_refs=patch_refs,
+            affected_products=products,
+            cpe=list(cpes),
+            plugin_hits=hits,
+            affected_asset_count=len({f.asset.uuid for f in selected}),
+            affected_finding_count=len(selected),
+            sources=sources,
+            confidence=confidence,
+            confidence_reason=confidence_reason,
+            conflicts=conflicts,
+            notes=notes,
+        ),
+        advisory,
     )
+
+
+def _merge_if_advisory(
+    record: VulnerabilityRecord, advisory: dict[str, Any] | None
+) -> VulnerabilityRecord:
+    if not advisory:
+        return record
+    return merge_advisory(record, advisory)
 
 
 def severity_text(record: VulnerabilityRecord) -> str:
