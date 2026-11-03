@@ -11,7 +11,7 @@ An orchestration layer, not another scanner. It takes an already-identified vuln
 3. **Control check** — confirm agent/EDR/AV presence, versions, feeds, and modes
 4. **KRI register + scoring** — detect KRI-01 … KRI-09 per asset, then rank by real risk, not raw CVSS
 5. **Remediation** — patch path plus compensating controls (IPS/WAF/firewall)
-6. **Ticket** — ticketing-system ticket with owner, evidence, and infosec Human Approval gate
+6. **Ticket** — ticketing-system ticket with owner, evidence, and infosec Human Approval condition
 7. **Containment** — NAC (Cisco ISE) isolates non-compliant devices to a remediation VLAN
 8. **Remediation execution** — Human-Approved patch jobs submitted to the patch-management connector
 9. **Verification & recovery** — fresh re-check after patch; restore only verified devices after Human Approval

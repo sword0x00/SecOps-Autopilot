@@ -12,7 +12,7 @@ Include:
 - the affected version or commit,
 - the component (`connectors/`, `pipeline.py`, `store.py`, CLI, report),
 - reproduction steps,
-- impact, especially any path that could bypass an approval gate or write a
+- impact, especially any path that could bypass a Human Approval condition or write a
   credential to an artifact.
 
 ## Scope

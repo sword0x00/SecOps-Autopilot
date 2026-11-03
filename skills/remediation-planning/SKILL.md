@@ -68,7 +68,7 @@ remediation_plan:
 4. **Select compensating controls that actually block the exploit path.** Match the control to the vulnerability mechanism: a network IPS signature for network-reachable exploitation, a WAF rule for web, a firewall block for a protocol that should not traverse a boundary (for example, SMB across segments). Use vendor mitigations from the advisory when supplied; they remain unverified until tested.
 5. **Mark controls unverified until tested.** `verified: false` is the default. Only a test in the target environment — or a documented vendor validation — promotes it to `true`.
 6. **Assign each asset a path.** `patch`, `compensate`, or `isolate`. Every asset gets one, with a stated reason.
-7. **Surface the approval gate.** The plan is a proposal. It goes to a ticket and an infosec approval before containment or patch submission.
+7. **Surface the Human Approval condition.** The plan is a proposal. It goes to a ticket and an infosec Human Approval before containment or patch submission.
 8. **Keep execution separate.** A patch job submitted under the `patch` gate is an execution record, not a fix. Verification is a fresh scanner read; only then is remediation claimed.
 
 ## Guardrails

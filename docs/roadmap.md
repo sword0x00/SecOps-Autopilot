@@ -11,7 +11,7 @@ omitted; the project is not resourced against a calendar in this repository.
 | Stage-contract architecture; read-only/state separation | **Implemented and tested** | `secops_autopilot/stages/`, `tests/test_stage_contracts.py` |
 | Advisory metadata, fixed versions, version-range evaluation | **Implemented and tested** | `secops_autopilot/advisory.py`, `tests/test_advisory.py` |
 | Generic KRI-05; KRI-08 runtime currency; KRI-09 external exposure | **Implemented and tested** | `kri.py`, `kri_catalog.json`, `tests/test_kri.py`, `tests/test_advisory.py` |
-| Patch execution stage with approval gate and simulated connector | **Implemented and tested** | `stages/patch_execution.py`, `connectors/patch.py` |
+| Patch execution stage with Human Approval condition and simulated connector | **Implemented and tested** | `stages/patch_execution.py`, `connectors/patch.py` |
 | Scan-freshness guard (stale scan is unknown, not a fix) | **Implemented and tested** | `stages/verification.py`, `tests/test_flow.py` |
 | Evidence reports with advisory provenance, contracts, patch jobs | **Implemented and tested** | `report.py`, generated `report.md`/`report.html` |
 | Live Tenable Vulnerability Management path | **Implemented and live-tested previously** | `docs/tenable-integration.md` |
