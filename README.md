@@ -204,7 +204,8 @@ mkdir -p ~/.claude/skills/secops-autopilot
 cp SKILL.md ~/.claude/skills/secops-autopilot/SKILL.md
 ```
 
-Restart or reload the Claude Code session after copying agent/skill files.
+Restart or reload the Claude Code session after copying agent/skill files. In
+Claude Code, invoke the installed skill as `/secops-autopilot`.
 
 ### 4. Install and run the scripts
 
