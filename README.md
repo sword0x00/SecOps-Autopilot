@@ -28,7 +28,7 @@ separate Human Approval.
 | 4 | KRI register + scoring | Detect KRI-01 … KRI-09 per asset, then rank by severity, exploit maturity, exposure, control gap, and asset criticality | Per-asset KRI matrix plus a transparent 0–100 risk score |
 | 5 | Remediation | Select the patch path, advisory fixed version per runtime branch, and compensating controls matched to the exploit mechanism | Plan with target versions and unverified controls called out |
 | 6 | Ticket + Human Approval | Create the ticketing-system ticket and record infosec Human Approval | Ticket bound to the plan SHA-256 |
-| 7 | Containment | Quarantine non-compliant devices via Cisco ISE ANC | Isolation event, or a blocked record when the MAC is unknown |
+| 7 | Containment | Quarantine non-compliant devices via the NAC solution | Isolation event, or a blocked record when the MAC is unknown |
 | 8 | Remediation execution | Submit Human-Approved patch jobs with the per-asset target version through the patch connector | Job record; simulated by default, never a claim that a host was patched |
 | 9 | Verification and recovery | Re-query the scanner after remediation; restore only verified devices after a separate Human Approval | Verified fix, open items, or restore events |
 | 10 | Evidence | Emit the full decision and action record | Markdown + HTML report and SHA-256 manifest |
@@ -134,7 +134,7 @@ The engine evaluates nine named indicators. `unknown` is never treated as clear.
 | KRI-03 | Stale threat feeds | AV/EDR feed age > 24h | Degraded detection / ticket |
 | KRI-04 | Detect-only mode | AV/EDR/app-control mode | Compensation / ticket |
 | KRI-05 | Unresolved exploitable vulnerability | Target CVE finding + finding state + exploit/patch signals | Patch / containment candidate |
-| KRI-06 | NAC non-compliant posture | ISE/control-inventory posture | Containment candidate |
+| KRI-06 | NAC non-compliant posture | NAC solution/control-inventory posture | Containment candidate |
 | KRI-07 | Active compromise | EDR infection or behavioral match | Isolate / containment required / no automatic restore |
 | KRI-08 | Vulnerable runtime version | CPE runtime version vs advisory affected range/fixed version | Exact target version / compensation if unsupported |
 | KRI-09 | Externally exposed vulnerable service | Web port/service or asset exposure score | WAF/IPS or containment priority |
@@ -152,7 +152,7 @@ when neither is available.
 | Tenable Vulnerability Management | **Live** | Validated against a Tenable lab tenant: CVE-scoped queries, per-asset export, asset detail, agent scope probe |
 | Tenable Security Center | Adapter implemented | Documented `/rest` API shape, not live-tested in this environment |
 | Ticketing system | Simulated | Tickets in `.state/ticketing.json`; the ticket/Human Approval flow is real in the run record |
-| Cisco ISE NAC | Simulated by default | Real ERS ANC adapter activates when `ISE_URL`, `ISE_USERNAME`, and `ISE_PASSWORD` are set |
+| NAC solution (Cisco ISE ERS adapter) | Simulated by default | The real adapter activates when `ISE_URL`, `ISE_USERNAME`, and `ISE_PASSWORD` are set |
 | EDR | Simulated | Returns `unknown` unless a status fixture or a real connector is supplied; never claims "clean" |
 | Patch management | Simulated | Jobs in `.state/patch.json`; `touched_host=false`; never reports `patched` |
 
@@ -363,7 +363,7 @@ flowchart TD
     E2 --> F[Remediation plan<br/>target versions + controls]
     F --> G{Human Approval: ticket}
     G -->|Human-Approved| H{Human Approval: remediation}
-    H -->|Human-Approved| I[Containment<br/>ISE ANC]
+    H -->|Human-Approved| I[Containment<br/>NAC solution]
     H -->|Human-Approved| P[Patch execution<br/>patch connector]
     I --> V[Verification<br/>fresh scanner read]
     P --> V
@@ -397,7 +397,7 @@ for the gap analysis, contracts, state machine, and error model.
   patch execution, and restore are separate Human Approval conditions.
   Containment and patch execution require the remediation Human Approval;
   restore requires fresh verification.
-- **No MAC means no NAC action.** ISE ANC keys on a MAC address. An asset without
+- **No MAC means no NAC action.** The NAC solution keys on a MAC address. An asset without
   one is recorded as `blocked`; the engine does not guess an identity.
 - **No invented patch target.** A patch job is submitted only when the advisory
   (or scanner evidence) names a fixed version for that asset's branch. Otherwise
@@ -478,9 +478,9 @@ tenant credentials.
 - Agent inventory (`/scanners/agents`) returned HTTP 403 `Insufficient scope` on
   the lab credential. The engine records agent version/feed as `unknown` rather
   than inferring it from a flag.
-- Ticketing, NAC, EDR, and patch management are simulated by default. The Cisco
-  ISE ERS adapter is implemented but has not been exercised against a live ISE
-  deployment.
+- Ticketing, NAC, EDR, and patch management are simulated by default. The NAC
+  solution adapter (Cisco ISE ERS) is implemented but has not been exercised
+  against a live NAC deployment.
 - The engine does not patch, reboot, or execute on endpoints. It plans, gates,
   contains through the configured NAC, submits patch jobs to the configured
   connector, and verifies through the scanner.

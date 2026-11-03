@@ -105,14 +105,14 @@
       "name": "NAC non-compliant posture",
       "category": "network_access",
       "severity": "high",
-      "description": "The NAC (Cisco ISE) policy reports the endpoint as non-compliant.",
-      "example": "ISE policy fails on DC01 and WS-FIN-042.",
+      "description": "The NAC solution policy reports the endpoint as non-compliant.",
+      "example": "NAC policy fails on DC01 and WS-FIN-042.",
       "detector": "nac_noncompliant",
       "params": {"field": "nac_compliant"},
-      "data_sources": ["Cisco ISE posture / control inventory"],
+      "data_sources": ["NAC solution posture / control inventory"],
       "evidence": ["nac_compliant", "nac_policy"],
       "remediation": "Route to the remediation VLAN, fix the posture failure, and re-authorize.",
-      "action": "NAC containment candidate; requires the normal approval gates.",
+      "action": "NAC containment candidate; requires the normal Human Approval conditions.",
       "stage": "containment"
     },
     {

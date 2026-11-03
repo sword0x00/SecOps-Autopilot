@@ -22,7 +22,7 @@ prints the next command.
 |---|---|---|
 | `ticket` | Create the ticketing-system ticket | A completed plan and a named human approver |
 | `remediation` | Infosec Human Approval of the plan; enables containment and patch submission | An existing ticket |
-| `containment` | Cisco ISE ANC quarantine | Remediation Human Approval recorded |
+| `containment` | NAC solution quarantine | Remediation Human Approval recorded |
 | `patch` | Submit patch jobs to the patch-management connector | Remediation Human Approval recorded; a verified target version per asset |
 | `restore` | Return verified-remediated assets to production | Fresh verification shows remediation; a separate named approver |
 
@@ -63,13 +63,13 @@ runtime branch into a patch target.
 ## Containment safety
 
 - Only assets marked `containment_recommended` in the Human-Approved plan are touched.
-- An asset without a MAC address is recorded as `blocked`. ISE ANC cannot
+- An asset without a MAC address is recorded as `blocked`. The NAC solution cannot
   identify it; a human must contain it manually or enrich the asset identity.
-- The simulated ISE adapter writes only to `.state/nac.json`.
-- The real Cisco ISE adapter is off unless `ISE_URL`, `ISE_USERNAME`, and
-  `ISE_PASSWORD` are configured. It issues documented ERS ANC apply/clear calls
-  and records `validated: false` because it has not been exercised against a live
-  ISE deployment here.
+- The simulated NAC solution adapter writes only to `.state/nac.json`.
+- The real NAC solution adapter (Cisco ISE ERS) is off unless `ISE_URL`,
+  `ISE_USERNAME`, and `ISE_PASSWORD` are configured. It issues documented ERS
+  apply/clear calls and records `validated: false` because it has not been
+  exercised against a live NAC deployment here.
 - Restore only applies to assets whose fresh Tenable query no longer reports the
   CVE.
 
@@ -136,5 +136,5 @@ mismatches, missing files, and unlisted files.
   control flow, not as production actions.
 - Confirm that a patch target is correct for the asset's runtime branch before
   granting Human Approval for the patch condition; the engine will not invent one.
-- For a real ISE deployment, test the ANC policy and the restore path in a lab
+- For a real NAC deployment, test the quarantine policy and the restore path in a lab
   first; the adapter is marked unvalidated.

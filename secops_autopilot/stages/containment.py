@@ -1,6 +1,6 @@
 """Stage 7 — approved network containment through the NAC.
 
-The engine never guesses an endpoint identity. Cisco ISE ANC is keyed on a MAC
+The engine never guesses an endpoint identity. The NAC solution is keyed on a MAC
 address; an asset without one produces a ``blocked`` record with the reason and
 a manual-containment next action. Every event carries the approver, ticket, connector,
 and simulation flag.
@@ -58,7 +58,7 @@ def execute_containment(ctx: StageContext, approver: str, note: str):
                 connector=getattr(ctx.nac, "name", "unknown"),
                 simulated=not getattr(ctx.nac, "live", False),
                 reason=(
-                    "No MAC address is recorded for this asset; ISE ANC cannot "
+                    "No MAC address is recorded for this asset; the NAC solution cannot "
                     "identify the endpoint. Manual containment or asset inventory enrichment "
                     "is required."
                 ),
@@ -148,7 +148,7 @@ def execute_containment(ctx: StageContext, approver: str, note: str):
             [
                 {
                     "field": "nac_identity",
-                    "reason": "ISE ANC keys on MAC; assets without a MAC are blocked, not guessed.",
+                    "reason": "The NAC solution keys on MAC; assets without a MAC are blocked, not guessed.",
                 }
             ]
             if blocked

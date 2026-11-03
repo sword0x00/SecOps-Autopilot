@@ -37,7 +37,7 @@ clean host.
 | KRI-03 | Stale threat feeds | high | `stale_threat_feed` | AV signature age; EDR feed age; 24h SLA |
 | KRI-04 | Detect-only mode | high | `detect_only_mode` | AV/EDR mode; application-control mode |
 | KRI-05 | Unresolved exploitable vulnerability | critical | `unpatched_exploitable` | target CVE finding; finding state; exploit signals; patch availability; SMB service/port for MS17-010 |
-| KRI-06 | NAC non-compliant posture | high | `nac_noncompliant` | ISE/control-inventory `nac_compliant`; policy |
+| KRI-06 | NAC non-compliant posture | high | `nac_noncompliant` | NAC solution/control-inventory `nac_compliant`; policy |
 | KRI-07 | Active compromise | critical | `active_compromise` | EDR infection status; behavioral matches |
 | KRI-08 | Vulnerable runtime version | critical | `vulnerable_runtime_version` | finding CPE product/version; advisory affected range/fixed version/support |
 | KRI-09 | Externally exposed vulnerable service | high | `external_exposure` | finding port/service; asset exposure score (AES) |
@@ -170,7 +170,7 @@ exposed.
 |---|---|
 | KRI-01/02/03/04 | Control-gap evidence; ticket to the endpoint/control owner; compensating controls; score input |
 | KRI-05 | Patch path plus mechanism-matched controls; containment candidate at/above threshold |
-| KRI-06 | Containment candidate regardless of score; ISE/NAC approval gates still apply |
+| KRI-06 | Containment candidate regardless of score; NAC solution Human Approval conditions still apply |
 | KRI-07 | Force `isolate`; containment required; restore only after verified remediation and Human Approval |
 | KRI-08 | Exact target version; `compensate`/migration when the branch has no vendor fix |
 | KRI-09 | WAF/IPS/firewall priority; containment candidate when combined with high risk |
@@ -182,8 +182,8 @@ below the default threshold. The human approval gates still apply.
 
 | Asset | Expected detections |
 |---|---|
-| DC01 | KRI-01 (no EDR/AV), KRI-06 (ISE policy fail) |
-| WS-FIN-042 | KRI-02 (AV behind baseline), KRI-03 (feed 11 days > 24h), KRI-04 (monitor mode), KRI-06 (ISE fail) |
+| DC01 | KRI-01 (no EDR/AV), KRI-06 (NAC policy fail) |
+| WS-FIN-042 | KRI-02 (AV behind baseline), KRI-03 (feed 11 days > 24h), KRI-04 (monitor mode), KRI-06 (NAC policy fail) |
 | Two Windows hosts | KRI-05 (SMBv1 + missing MS17-010) |
 | WS-MKT-011 | KRI-07 (EDR behavioral match) |
 | PHP 8.4.26 web host | KRI-05, KRI-08 (fixed 8.4.27), KRI-09 (TCP/443) |
@@ -223,7 +223,7 @@ KRI-02/03/04/06, WS-MKT-011 KRI-07, and KRI-05 on both synthetic Windows hosts.
   `unknown`, not clear.
 - KRI-05 matches the target CVE; `legacy_cves`/markers enrich the MS17-010
   evidence but are not a security scope restriction.
-- KRI-06 needs an ISE/NAC export field; the simulated NAC does not report
+- KRI-06 needs a NAC solution export field; the simulated NAC does not report
   pre-containment compliance.
 - KRI-07 needs an EDR signal or the explicit `.state/edr_status.json` fixture.
 - KRI-08 needs both a versioned CPE and an advisory. Without either it is

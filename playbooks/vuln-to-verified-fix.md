@@ -153,7 +153,8 @@ SHA, action taken.
 **Actions**
 
 1. For every asset the plan marks as a containment candidate:
-   - MAC present: quarantine through the NAC connector (ISE ANC or simulator).
+   - MAC present: quarantine through the NAC solution connector (live NAC
+     solution or simulator).
    - MAC absent: record `blocked` with the reason; do not guess an identity.
 2. Record the Human Approval (approver name), ticket, policy, VLAN, connector, and `simulated` flag.
 3. Record every containment action in the run.

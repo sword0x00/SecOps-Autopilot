@@ -12,7 +12,7 @@ An orchestration layer, not another scanner. It takes an already-identified vuln
 4. **KRI register + scoring** — detect KRI-01 … KRI-09 per asset, then rank by real risk, not raw CVSS
 5. **Remediation** — patch path plus compensating controls (IPS/WAF/firewall)
 6. **Ticket** — ticketing-system ticket with owner, evidence, and infosec Human Approval condition
-7. **Containment** — NAC (Cisco ISE) isolates non-compliant devices to a remediation VLAN
+7. **Containment** — the NAC solution isolates non-compliant devices to a remediation VLAN
 8. **Remediation execution** — Human-Approved patch jobs submitted to the patch-management connector
 9. **Verification & recovery** — fresh re-check after patch; restore only verified devices after Human Approval
 10. **Evidence** — audit-ready record of every decision and action
@@ -37,7 +37,7 @@ secops_autopilot/
   connectors/
     tenable_vm.py                live Tenable Vulnerability Management
     tenable_sc.py                Tenable Security Center adapter (not live-validated)
-    ticketing.py  nac.py  edr.py simulated by default; ISE ERS adapter included
+    ticketing.py  nac.py  edr.py simulated by default; NAC solution adapter included
     patch.py                     patch jobs; simulated by default
     http.py                      shared HTTP transport
 skills/
@@ -92,4 +92,4 @@ python3 -m unittest discover -s tests -v
 
 ## Status
 
-Implemented and live-tested against Tenable Vulnerability Management. Tenable Security Center and Cisco ISE adapters follow documented APIs but are marked not live-validated in this environment. Default ticketing/EDR/patch backends are simulated. See `README.md` and `docs/architecture.md` for the full status and limitations.
+Implemented and live-tested against Tenable Vulnerability Management. Tenable Security Center and NAC solution adapters follow documented APIs but are marked not live-validated in this environment. Default ticketing/EDR/patch backends are simulated. See `README.md` and `docs/architecture.md` for the full status and limitations.

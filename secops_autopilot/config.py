@@ -166,14 +166,14 @@ class ISESettings:
 
     def public_snapshot(self) -> dict[str, object]:
         return {
-            "product": "Cisco ISE",
+            "product": "NAC solution (Cisco ISE ERS)",
             "base_url": self.base_url or None,
             "configured": self.configured,
             "verify_tls": self.verify_tls,
             "anc_action": self.anc_action,
             "adapter_note": (
-                "ISE ERS ANC apply/clear calls are implemented from the documented "
-                "ERS API but were not exercised against a live ISE deployment here."
+                "ERS apply/clear calls are implemented from the documented "
+                "ERS API but were not exercised against a live NAC deployment here."
             ),
         }
 

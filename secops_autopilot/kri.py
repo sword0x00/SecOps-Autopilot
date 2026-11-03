@@ -523,7 +523,7 @@ def _nac_noncompliant(
         )
     return (
         UNKNOWN,
-        ["NAC compliance is not supplied by an ISE/NAC connector or control inventory."],
+        ["NAC compliance is not supplied by a NAC solution connector or control inventory."],
         {"nac_compliant": None, "nac_policy": control.nac_policy},
     )
 
