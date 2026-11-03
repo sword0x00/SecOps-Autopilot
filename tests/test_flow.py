@@ -48,12 +48,10 @@ class FlowTest(unittest.TestCase):
         control_types = {
             control["type"] for control in run.plan["compensating_controls"]
         }
-        self.assertTrue({"ips_rule", "firewall_rule", "configuration_change", "siem_rule"} <= control_types)
+        self.assertTrue({"ips_rule", "firewall_rule", "configuration_change", "detection_rule"} <= control_types)
         self.assertTrue(all(not control["verified"] for control in run.plan["compensating_controls"]))
         self.assertTrue(run.plan["workarounds"])
-        self.assertEqual(len(run.alerts), 2)
-        self.assertTrue(all(alert["code"] == "HIGH_KRI_EXPOSURE" for alert in run.alerts))
-        self.assertEqual(len(run.kri_detections), 14)
+        self.assertEqual(len(run.kri_detections), 18)
         self.assertIn("kri_register", run.stages)
         detected = {
             (item["kri_id"], item["asset_uuid"])
@@ -73,7 +71,12 @@ class FlowTest(unittest.TestCase):
         directory = self.pipeline.store.run_dir(run.run_id)
         self.assertTrue((directory / "report.md").is_file())
         self.assertTrue((directory / "report.html").is_file())
+        self.assertTrue((directory / "executive-summary.md").is_file())
         self.assertTrue((directory / "manifest.json").is_file())
+        executive = (directory / "executive-summary.md").read_text(encoding="utf-8")
+        self.assertIn(CVE, executive)
+        self.assertIn("Numbers at a glance", executive)
+        self.assertIn("What this report does not prove", executive)
         report = (directory / "report.md").read_text(encoding="utf-8")
         self.assertIn(CVE, report)
         self.assertIn("Read this first", report)
@@ -117,7 +120,24 @@ class FlowTest(unittest.TestCase):
         self.assertEqual(len(restores), 1)
         self.assertEqual(restores[0]["status"], "restored")
 
-    def test_kri_07_detected_forces_isolation_and_soc_handoff(self):
+    def test_stale_scan_is_unknown_not_remediated(self):
+        self.settings.verification_max_scan_age_hours = 1.0
+        self.source.after = []
+        run = self._advance_to_verification()
+        run = self.pipeline.verify(run.run_id)
+        self.assertEqual(run.status, "verification_open")
+        self.assertEqual(run.verification["remediated_count"], 0)
+        self.assertEqual(run.verification["unknown_count"], 2)
+        self.assertTrue(
+            any(
+                event["kind"] == "verification_scan_stale"
+                for event in run.events
+            )
+        )
+        with self.assertRaises(StateError):
+            self.pipeline.approve(run.run_id, GATE_RESTORE, "SecOps Lead")
+
+    def test_kri_07_detected_forces_isolation_without_verification_escalation(self):
         status_file = self.settings.state_dir / "edr_status.json"
         status_file.parent.mkdir(parents=True, exist_ok=True)
         status_file.write_text(
@@ -149,18 +169,17 @@ class FlowTest(unittest.TestCase):
         self.assertEqual(plan_item["path"], "isolate")
         self.assertTrue(plan_item["containment_recommended"])
         self.assertIn("KRI-07", plan_item["containment_reason"])
-        self.assertTrue(
-            any(alert["code"] == "KRI_ACTIVE_COMPROMISE" for alert in run.alerts)
-        )
         run = self.pipeline.approve(run.run_id, GATE_TICKET, "Ticket Approver")
         run = self.pipeline.approve(run.run_id, GATE_REMEDIATION, "Infosec Approver")
         run = self.pipeline.approve(run.run_id, GATE_CONTAINMENT, "SecOps Lead")
         run = self.pipeline.verify(run.run_id)
-        self.assertEqual(run.status, "escalated_to_soc")
-        with self.assertRaises(StateError):
-            self.pipeline.approve(run.run_id, GATE_RESTORE, "SecOps Lead")
+        self.assertEqual(run.status, "verified_remediated")
+        self.assertEqual(run.verification["infection_status"], "infected")
+        self.assertFalse(any(event["kind"] == "edr_infection" for event in run.events))
+        run = self.pipeline.approve(run.run_id, GATE_RESTORE, "SecOps Lead")
+        self.assertEqual(run.status, "restored")
 
-    def test_edr_infection_escalates_and_blocks_restore(self):
+    def test_edr_infection_is_recorded_without_escalation(self):
         self.source.after = []
         run = self._advance_to_verification()
         status_file = self.settings.state_dir / "edr_status.json"
@@ -183,15 +202,13 @@ class FlowTest(unittest.TestCase):
             encoding="utf-8",
         )
         run = self.pipeline.verify(run.run_id)
-        self.assertEqual(run.status, "escalated_to_soc")
+        self.assertEqual(run.status, "verified_remediated")
         self.assertEqual(run.verification["infection_status"], "infected")
-        cases = json.loads(
-            (self.settings.state_dir / "edr_cases.json").read_text(encoding="utf-8")
+        self.assertFalse(
+            any(event["kind"] == "edr_infection" for event in run.events)
         )
-        self.assertEqual(len(cases["cases"]), 1)
-        self.assertEqual(cases["cases"][0]["asset_uuid"], "asset-1")
-        with self.assertRaises(StateError):
-            self.pipeline.approve(run.run_id, GATE_RESTORE, "SecOps Lead")
+        run = self.pipeline.approve(run.run_id, GATE_RESTORE, "SecOps Lead")
+        self.assertEqual(run.status, "restored")
 
     def test_new_asset_during_verification_keeps_the_run_open(self):
         from tests.helpers import make_finding

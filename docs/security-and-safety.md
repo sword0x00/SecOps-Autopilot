@@ -12,53 +12,57 @@ tenant before any control-plane write is authorized.
 - Local writes: a run directory under `runs/` and simulated state under
   `.state/`.
 
-It does **not** create a ticket, contact the NAC, push a patch, restart a host, or
-change an endpoint. The run stops at `awaiting_ticket_approval` and prints the
-next command.
+It does **not** create a ticket, contact the NAC, submit a patch job, restart a
+host, or change an endpoint. The run stops at `awaiting_ticket_approval` and
+prints the next command.
 
-## Approval gates
+## Human Approval conditions
 
-| Gate | What it authorizes | Preconditions |
+| Human Approval condition | What it authorizes | Preconditions |
 |---|---|---|
-| `ticket` | Create the ITSM ticket | A completed plan and an approver name |
-| `remediation` | Infosec approval of the plan; enables containment | An existing ticket |
-| `containment` | Cisco ISE ANC quarantine | Remediation approved |
-| `restore` | Return verified-remediated assets to production | Fresh verification shows remediation; separate approver |
+| `ticket` | Create the ticketing-system ticket | A completed plan and a named human approver |
+| `remediation` | Infosec Human Approval of the plan; enables containment and patch submission | An existing ticket |
+| `containment` | Cisco ISE ANC quarantine | Remediation Human Approval recorded |
+| `patch` | Submit patch jobs to the patch-management connector | Remediation Human Approval recorded; a verified target version per asset |
+| `restore` | Return verified-remediated assets to production | Fresh verification shows remediation; a separate named approver |
 
-A rejection at the remediation gate moves the run to `remediation_rejected` and
-makes containment impossible. There is no override flag.
+A rejection at the remediation Human Approval condition moves the run to `remediation_rejected` and
+makes containment and patch submission impossible. There is no override flag.
 
 ## Plan integrity
 
-The remediation plan is canonicalized and hashed. Every approval stores:
+The remediation plan is canonicalized and hashed. Every Human Approval stores:
 
 - the gate and decision,
 - the approver and timestamp,
 - the plan SHA-256,
 - the action taken and its result reference.
 
-Before a ticket, containment, or restore action, the engine recomputes the plan
-hash. A modified plan invalidates the approval and raises an error. This is
-covered by a test.
+Before a ticket, containment, patch submission, or restore action, the engine
+recomputes the plan hash. A modified plan invalidates the Human Approval and raises an
+error. This is covered by a test.
 
 ## No invented facts
 
 The engine records `unknown` with a reason for:
 
-- asset owner (no CMDB mapping),
+- asset owner (no asset inventory mapping),
 - agent version/status/feed age (API scope),
 - EDR/AV presence and signature age (no inventory),
 - application-control mode (no inventory),
-- patch prerequisites, rollback, and effort (not in Tenable metadata),
+- runtime product/version (no versioned CPE),
+- fixed version/patch target (advisory cannot name a fix for the branch),
+- patch prerequisites, rollback, and effort (not in scanner/advisory metadata),
 - infection status (no EDR signal).
 
 It does not turn `has_agent=false` into "EDR absent"; those are different
 controls. It does not turn a missing EDR signal into "clean." It does not turn a
-MAC-less asset into a quarantinable endpoint.
+MAC-less asset into a quarantinable endpoint. It does not turn an unsupported
+runtime branch into a patch target.
 
 ## Containment safety
 
-- Only assets marked `containment_recommended` in the approved plan are touched.
+- Only assets marked `containment_recommended` in the Human-Approved plan are touched.
 - An asset without a MAC address is recorded as `blocked`. ISE ANC cannot
   identify it; a human must contain it manually or enrich the asset identity.
 - The simulated ISE adapter writes only to `.state/nac.json`.
@@ -67,14 +71,33 @@ MAC-less asset into a quarantinable endpoint.
   and records `validated: false` because it has not been exercised against a live
   ISE deployment here.
 - Restore only applies to assets whose fresh Tenable query no longer reports the
-  CVE and whose EDR status is not `infected`.
+  CVE.
+
+## Patch execution safety
+
+- Jobs are built only for assets on the Human-Approved `patch` path with a target
+  version supplied by the advisory for that runtime branch.
+- An asset with no verified target version is recorded in `skipped` with the
+  reason; no job is submitted.
+- The default patch connector is file-backed. It writes `.state/patch.json`,
+  records `simulated: true`, `touched_host: false`, and never reports `patched`.
+- A live adapter must set `live: true` and `simulated: false` only when it
+  actually contacted the patch-management system. Even then, submission is not
+  remediation evidence.
+- A patch connector failure is recorded as a failed execution; the engine does
+  not automatically retry a consequential submission.
+- Verification remains the only accepted evidence of a fix. A queued, accepted,
+  or "successful" patch job does not close the finding.
 
 ## Verification honesty
 
 A Tenable finding disappearing after a rescan is evidence. The engine records the
 verification query, the date window, the per-asset last scan, and whether the
-asset was contained. If the query fails, every asset is `unknown` and the run
-says so; it does not report a fix.
+asset was contained. An absent finding is only accepted when `last_scan` is
+within `SECOPS_VERIFICATION_MAX_SCAN_AGE_HOURS` (default 72h); a stale or missing
+timestamp is `unknown` and records a `verification_scan_stale` event. If the query fails,
+every asset is `unknown` and the run says so; it does not report a fix. A stale
+scan, a submitted patch job, or a ticket update is not evidence of remediation.
 
 ## Secret handling
 
@@ -107,8 +130,11 @@ mismatches, missing files, and unlisted files.
 
 - Confirm the Tenable tenant and asset scope before running.
 - Keep the `.env` file out of backups that are not access-controlled.
-- Review the plan, compensating controls, and unknowns before approving.
-- Treat the simulated ITSM/NAC/SIEM/EDR records as a demonstration of the control
-  flow, not as production actions.
+- Review the plan, compensating controls, target versions, and unknowns before
+  granting Human Approval.
+- Treat the simulated ticketing/NAC/EDR/patch records as a demonstration of the
+  control flow, not as production actions.
+- Confirm that a patch target is correct for the asset's runtime branch before
+  granting Human Approval for the patch condition; the engine will not invent one.
 - For a real ISE deployment, test the ANC policy and the restore path in a lab
   first; the adapter is marked unvalidated.

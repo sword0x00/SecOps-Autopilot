@@ -1,4 +1,4 @@
-"""EDR connector used for the infection branch and SOC handoff.
+"""EDR connector used for the infection status check.
 
 No EDR tenant was provided. The simulator therefore returns ``unknown`` unless
 an explicit fixture (``.state/edr_status.json``) supplies a status. It never
@@ -10,7 +10,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from ..util import utc_now
 from .state import JsonState
 
 
@@ -21,7 +20,6 @@ class SimulatedEDR:
 
     def __init__(self, state_dir: Path) -> None:
         self.state_dir = state_dir
-        self.cases = JsonState(state_dir / "edr_cases.json")
         self.statuses = JsonState(state_dir / "edr_status.json")
 
     def status(self, asset_uuid: str, hostname: str) -> dict[str, Any]:
@@ -60,24 +58,6 @@ class SimulatedEDR:
             ),
         }
 
-    def handoff(self, asset_uuid: str, hostname: str, evidence: dict[str, Any]) -> dict[str, Any]:
-        def mutate(data: dict[str, Any]) -> dict[str, Any]:
-            next_id = int(data.get("next_id", 1))
-            data["next_id"] = next_id + 1
-            case = {
-                "case_id": f"SIM-SOC-{next_id:06d}",
-                "asset_uuid": asset_uuid,
-                "hostname": hostname,
-                "status": "queued",
-                "created_at": utc_now(),
-                "simulated": True,
-                "evidence": evidence,
-            }
-            data.setdefault("cases", []).append(case)
-            return case
-
-        return self.cases.update(mutate, {"next_id": 1, "cases": []})
-
     def public_snapshot(self) -> dict[str, Any]:
         return {
             "name": self.name,
@@ -86,6 +66,6 @@ class SimulatedEDR:
             "simulated": True,
             "note": (
                 "No EDR tenant is configured. Infection status is unknown unless "
-                ".state/edr_status.json is supplied. SOC handoffs are file-backed."
+                ".state/edr_status.json is supplied; no escalation record is invented."
             ),
         }

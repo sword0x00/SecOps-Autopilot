@@ -46,8 +46,21 @@ affected:
 remediation:
   patch_available: true
   patch_refs: []
+  fixed_versions:              # from the advisory, per branch
+    - product: php
+      branch: "8.4"
+      range: ">=8.4.0 <8.4.27"
+      fixed: "8.4.27"
+      support: supported
+  mitigations: []              # vendor/analyst steps, verified: false by default
   compensating_controls: []    # filled in by remediation-planning
   workarounds: []
+
+provenance:                    # required for any "verified" claim
+  status: verified             # verified | provided | unverified
+  source_url: "https://..."
+  retrieved_at: 2026-11-03T00:00:00Z
+  method: "primary advisory page fetched"
 
 confidence: unknown             # high | medium | low | unknown
 conflicts: []                   # any disagreement between sources
@@ -56,14 +69,17 @@ conflicts: []                   # any disagreement between sources
 ## Procedure
 
 1. **Identify the vulnerability.** Resolve the identifier or extract it from the input. If the input carries several, split into separate records — one vulnerability per run.
-2. **Collect sources.** At minimum, consult the authoritative source (NVD or the vendor). Note every source and retrieval time. Do not merge sources silently.
-3. **Extract affected products and versions.** Be precise about version ranges and required configuration. "Affected: Windows Server 2008/2012" is not precise enough — what makes a host vulnerable is the product *and* the configuration (SMBv1 enabled, port 445 reachable).
-4. **Record exploitation status.** Known-exploited-in-the-wild is the single biggest driver of urgency. If sources disagree, record the disagreement in `conflicts` and lean toward the more cautious reading.
-5. **Record the detection signature.** Downstream stages need to know how to recognize the condition on an asset, not just the CVE ID.
-6. **Grade confidence.** `low` or `unknown` confidence should not proceed to containment on its own.
+2. **Collect sources.** At minimum, consult the authoritative source (NVD or the vendor). Note every source and retrieval time. When a vendor advisory supplies fixed versions, load it with `--advisory` or use the JSON schema in `validation/advisories/`; do not merge sources silently.
+3. **Extract affected products and versions.** Be precise about version ranges and required configuration. "Affected: Windows Server 2008/2012" is not precise enough — what makes a host vulnerable is the product *and* the configuration (SMBv1 enabled, port 445 reachable). For runtime products (PHP, Node.js), record the CPE product and version; KRI-08 reads them.
+4. **Record the fixed version per branch.** Capture the advisory's fixed release for each supported branch, and explicitly record an unsupported branch with `fixed: null`. Do not convert an unsupported branch into a patch target.
+5. **Record exploitation status.** Known-exploited-in-the-wild is the single biggest driver of urgency. If sources disagree, record the disagreement in `conflicts` and lean toward the more cautious reading.
+6. **Record the detection signature.** Downstream stages need to know how to recognize the condition on an asset, not just the CVE ID.
+7. **Grade confidence and provenance.** `low` or `unknown` confidence should not proceed to containment on its own. A `verified` advisory claim needs a source URL and retrieval time.
 
 ## Guardrails
 
 - Do not summarize away a conflict between sources — surface it in `conflicts`.
 - Do not infer a patch exists because a vendor mentioned one. Record the reference and mark `patch_available` only when you have one.
+- Do not invent a fixed version. If the advisory names no fix for the asset's branch, write `fixed: null` and let remediation choose compensation.
+- Do not mark provenance `verified` without a source URL and retrieval time.
 - Do not assign severity yourself if a CVSS score exists; record the score and vector as published.

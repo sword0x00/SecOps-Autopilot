@@ -49,11 +49,11 @@ def evaluate(
 
 
 class KRIRegisterTest(unittest.TestCase):
-    def test_catalog_loads_all_seven(self):
+    def test_catalog_loads_all_nine(self):
         catalog = load_catalog()
         self.assertEqual(
             [item["id"] for item in catalog["kris"]],
-            [f"KRI-0{index}" for index in range(1, 8)],
+            [f"KRI-0{index}" for index in range(1, 10)],
         )
 
     def test_kri_01_missing_security_agent(self):
@@ -237,11 +237,11 @@ class KRIRegisterTest(unittest.TestCase):
             )
         )
         counts = detection_counts(list(results.values()))
-        self.assertEqual(sum(counts.values()), 7)
+        self.assertEqual(sum(counts.values()), 9)
         self.assertEqual(counts[DETECTED], 1)
-        self.assertEqual(counts[NOT_DETECTED], 1)
-        self.assertEqual(counts[UNKNOWN], 2)
-        self.assertEqual(counts[NOT_APPLICABLE], 3)
+        self.assertEqual(counts[NOT_DETECTED], 0)
+        self.assertEqual(counts[UNKNOWN], 4)
+        self.assertEqual(counts[NOT_APPLICABLE], 4)
 
 
 if __name__ == "__main__":

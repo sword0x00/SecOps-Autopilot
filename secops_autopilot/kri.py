@@ -1,4 +1,4 @@
-"""KRI register: deterministic checks for KRI-01 … KRI-07.
+"""KRI register: deterministic checks for KRI-01 … KRI-09.
 
 The numeric KRI score in ``scoring.py`` answers "how risky is this asset for
 this vulnerability?" This module answers a different, auditable question for
@@ -16,8 +16,10 @@ import re
 from pathlib import Path
 from typing import Any, Callable
 
+from .advisory import runtime_matches
 from .errors import ConfigError
 from .models import ControlPosture, KRIDetection, VulnerabilityRecord
+from .scoring import exploit_signals
 
 DETECTED = "detected"
 NOT_DETECTED = "not_detected"
@@ -222,8 +224,18 @@ def _detect_only_mode(
 def _unpatched_exploitable(
     ctx: dict[str, Any], params: dict[str, Any], vulnerability: VulnerabilityRecord
 ) -> tuple[str, list[str], dict[str, Any]]:
+    """Generic KRI-05: the target vulnerability is still open on this asset.
+
+    The earlier implementation was hard-coded to MS17-010. That made the KRI
+    report ``not_applicable`` for every non-Windows CVE, which defeated its
+    purpose. The target CVE is now the primary match; legacy name/service
+    markers remain available for MS17-010-style evidence enrichment.
+    """
     target = vulnerability.id.upper()
-    cves = {str(item).upper() for item in params.get("cves", [])}
+    legacy_cves = {
+        str(item).upper()
+        for item in (params.get("legacy_cves") or params.get("cves") or [])
+    }
     markers = [_norm(item) for item in params.get("name_markers", [])]
     service_markers = [_norm(item) for item in params.get("service_markers", [])]
     matches = []
@@ -239,46 +251,255 @@ def _unpatched_exploitable(
             )
         )
         finding_cves = {item.upper() for item in finding.cve}
-        cve_match = bool(cves.intersection(finding_cves))
+        cve_match = target in finding_cves
+        legacy_match = bool(legacy_cves.intersection(finding_cves))
         marker_match = any(marker and marker in text for marker in markers)
-        if cve_match or marker_match:
+        if cve_match or legacy_match or marker_match:
             matches.append(finding)
-    if target not in cves and not matches:
-        return (
-            NOT_APPLICABLE,
-            [f"{target} is outside KRI-05 scope ({', '.join(sorted(cves)) or 'no CVEs'})."],
-            {"target": target, "scope_cves": sorted(cves)},
-        )
     if not matches:
         return (
-            NOT_DETECTED,
-            ["No MS17-010/SMBv1 finding for this asset in this run."],
-            {"target": target},
+            NOT_APPLICABLE,
+            [
+                f"{target} is not represented by a finding on this asset; "
+                "KRI-05 is not applicable to this asset."
+            ],
+            {"target": target, "scope_cves": sorted(legacy_cves)},
         )
-    evidence = []
+    open_matches = [
+        finding
+        for finding in matches
+        if str(finding.state or "open").upper() not in {"FIXED", "CLOSED", "RESOLVED"}
+    ]
+    if not open_matches:
+        return (
+            NOT_DETECTED,
+            [f"All {len(matches)} finding(s) for {target} are closed/fixed in the export."],
+            {"target": target, "plugin_ids": sorted({f.plugin_id for f in matches})},
+        )
+
+    evidence = [
+        f"Tenable plugin {finding.plugin_id}: {finding.plugin_name}"
+        for finding in open_matches
+    ]
+    signals = exploit_signals(open_matches)
+    if signals:
+        evidence.append("Exploit signals: " + ", ".join(signals) + ".")
+    patch_flags = [
+        finding.has_patch
+        for finding in open_matches
+        if finding.has_patch is not None
+    ]
+    if any(patch_flags):
+        evidence.append(
+            "A patch is reported available, but the asset still has an open finding."
+        )
+    elif patch_flags and all(flag is False for flag in patch_flags):
+        evidence.append(
+            "No patch is reported available; compensating controls are the interim path."
+        )
+    else:
+        evidence.append(
+            "Patch availability is unknown in the scanner metadata."
+        )
     service_evidence = []
-    for finding in matches:
-        evidence.append(f"Tenable plugin {finding.plugin_id}: {finding.plugin_name}")
+    for finding in open_matches:
         text = _norm(f"{finding.plugin_name} {finding.description} {finding.output}")
         if (
-            finding.port == 445
-            or _norm(finding.service) == "cifs"
+            finding.port in {445, 139}
+            or _norm(finding.service) in {"cifs", "smb"}
             or any(marker in text for marker in service_markers)
         ):
             service_evidence.append(
-                f"SMB service/port evidence on {finding.asset.display_name} (port {finding.port or 'unknown'})."
+                f"SMB service/port evidence on {finding.asset.display_name} "
+                f"(port {finding.port or 'unknown'})."
             )
     if service_evidence:
         evidence.extend(sorted(set(service_evidence)))
-        evidence.append("SMBv1 state must be confirmed on the host; the missing MS17-010 patch is confirmed.")
+        evidence.append(
+            "SMBv1 state must be confirmed on the host; the missing patch is confirmed."
+        )
     return (
         DETECTED,
         evidence,
         {
             "target": target,
-            "plugin_ids": sorted({finding.plugin_id for finding in matches}),
+            "plugin_ids": sorted({finding.plugin_id for finding in open_matches}),
+            "exploit_signals": signals,
+            "patch_available": True if any(patch_flags) else False if patch_flags else None,
             "smb_service_evidence": bool(service_evidence),
         },
+    )
+
+
+def _vulnerable_runtime_version(
+    ctx: dict[str, Any], params: dict[str, Any], vulnerability: VulnerabilityRecord
+) -> tuple[str, list[str], dict[str, Any]]:
+    """KRI-08: installed runtime is below the advisory's fixed version.
+
+    Runtime versions come from the finding's CPE, not from a guess. If the CPE
+    is absent or unversioned, the result is ``unknown``. If the advisory does not
+    cover the asset's product, the KRI does not apply to that asset.
+    """
+    advisory = getattr(vulnerability, "advisory", None)
+    if not advisory:
+        return (
+            UNKNOWN,
+            [
+                "No advisory version metadata is attached; runtime currency "
+                "cannot be assessed. Supply --advisory to evaluate KRI-08."
+            ],
+            {"advisory": None},
+        )
+    matches = runtime_matches(ctx.get("findings") or [], advisory)
+    if not matches:
+        return (
+            NOT_APPLICABLE,
+            [
+                "No CPE in the finding set matches an affected product in the "
+                f"advisory {advisory.get('id')}."
+            ],
+            {"advisory": advisory.get("id"), "matches": []},
+        )
+    detected: list[str] = []
+    unknown: list[str] = []
+    clear: list[str] = []
+    grouped: dict[tuple[str, str | None], list[dict[str, Any]]] = {}
+    for match in matches:
+        grouped.setdefault(
+            (str(match.get("product") or "runtime"), match.get("version")), []
+        ).append(match)
+    for (product, version), group in grouped.items():
+        if not version:
+            unknown.append(
+                f"{product}: CPE does not expose a version; runtime currency is unknown."
+            )
+            continue
+        affecting = [item for item in group if item.get("in_range") is True]
+        if affecting:
+            chosen = affecting[0]
+            fixed = next(
+                (item.get("fixed") for item in affecting if item.get("fixed")), None
+            )
+            branch = chosen.get("branch") or "unknown branch"
+            if fixed:
+                detected.append(
+                    f"{product} {version} is inside affected range "
+                    f"{chosen.get('range')}; fixed version is {fixed} "
+                    f"(branch {branch})."
+                )
+            else:
+                detected.append(
+                    f"{product} {version} is inside affected range "
+                    f"{chosen.get('range')}; no vendor fixed version is recorded "
+                    f"for branch {branch} (support={chosen.get('support')})."
+                )
+            continue
+        if all(item.get("in_range") is False for item in group):
+            clear.append(
+                f"{product} {version} is outside all affected ranges in advisory "
+                f"{advisory.get('id')}."
+            )
+            continue
+        unknown.append(
+            f"{product} {version}: one or more affected ranges could not be "
+            "evaluated."
+        )
+    detail = {
+        "advisory": advisory.get("id"),
+        "advisory_source": advisory.get("source"),
+        "matches": [
+            {
+                "product": item.get("product"),
+                "version": item.get("version"),
+                "range": item.get("range"),
+                "fixed": item.get("fixed"),
+                "branch": item.get("branch"),
+                "support": item.get("support"),
+                "in_range": item.get("in_range"),
+            }
+            for item in matches
+        ],
+    }
+    if detected:
+        return DETECTED, detected + clear, detail
+    if unknown:
+        return UNKNOWN, unknown + clear, detail
+    return NOT_DETECTED, clear, detail
+
+
+def _external_exposure(
+    ctx: dict[str, Any], params: dict[str, Any], _vulnerability: VulnerabilityRecord
+) -> tuple[str, list[str], dict[str, Any]]:
+    """KRI-09: the vulnerable service is reachable from an untrusted network.
+
+    The signal is a web port/service on the finding, or a supplied asset
+    exposure score. No signal is ``unknown``; an explicit non-web listener with
+    no exposure score is ``not_detected`` only when the finding itself carries
+    port/service metadata. The engine never infers "internal" from silence.
+    """
+    ports = {int(item) for item in (params.get("ports") or [80, 443, 8080, 8443, 3000, 8000])}
+    services = {_norm(item) for item in (params.get("services") or [])}
+    findings = ctx.get("findings") or []
+    web: list[str] = []
+    non_web: list[str] = []
+    for finding in findings:
+        service = _norm(finding.service)
+        if (
+            finding.port in ports
+            or service in services
+            or "http" in service
+            or "https" in service
+        ):
+            web.append(
+                f"Plugin {finding.plugin_id} exposes "
+                f"{finding.service or 'a service'} on port {finding.port or 'unknown'}."
+            )
+        elif finding.port is not None:
+            non_web.append(
+                f"Plugin {finding.plugin_id} is on non-web port {finding.port} "
+                f"({finding.service or 'service unknown'})."
+            )
+    detail_raw = ctx.get("detail") or {}
+    aes = detail_raw.get("aes_score")
+    threshold = float(params.get("aes_threshold") or 700)
+    detail = {"ports": sorted(ports), "aes_score": aes, "aes_threshold": threshold}
+    if web:
+        evidence = list(web)
+        if isinstance(aes, (int, float)):
+            evidence.append(
+                f"Asset exposure score {aes} "
+                f"({'at/above' if aes >= threshold else 'below'} threshold {threshold:g})."
+            )
+        return DETECTED, evidence, detail
+    if isinstance(aes, (int, float)):
+        if aes >= threshold:
+            return (
+                DETECTED,
+                [
+                    f"No web listener is recorded on the finding, but the asset "
+                    f"exposure score {aes} is at/above the {threshold:g} threshold."
+                ],
+                detail,
+            )
+        return (
+            NOT_DETECTED,
+            [
+                f"No web listener is recorded on the finding, and the asset "
+                f"exposure score {aes} is below the {threshold:g} threshold."
+            ],
+            detail,
+        )
+    if non_web:
+        return (
+            NOT_DETECTED,
+            non_web
+            + ["No web listener or asset exposure score is recorded; the finding is not web-exposed."],
+            detail,
+        )
+    return (
+        UNKNOWN,
+        ["No port, service, or asset exposure score is available; external exposure is unknown."],
+        detail,
     )
 
 
@@ -344,6 +565,8 @@ DETECTORS: dict[str, Detector] = {
     "unpatched_exploitable": _unpatched_exploitable,
     "nac_noncompliant": _nac_noncompliant,
     "active_compromise": _active_compromise,
+    "vulnerable_runtime_version": _vulnerable_runtime_version,
+    "external_exposure": _external_exposure,
 }
 
 

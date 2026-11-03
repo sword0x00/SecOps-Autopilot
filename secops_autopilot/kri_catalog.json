@@ -1,6 +1,6 @@
 {
-  "version": "1.0",
-  "updated": "2026-11-02",
+  "version": "1.1",
+  "updated": "2026-11-03",
   "name": "SecOps Autopilot KRI register",
   "status_values": ["detected", "not_detected", "unknown", "not_applicable"],
   "kris": [
@@ -83,20 +83,20 @@
     },
     {
       "id": "KRI-05",
-      "name": "Unpatched exploitable host",
+      "name": "Unresolved exploitable vulnerability",
       "category": "vulnerability",
       "severity": "critical",
-      "description": "SMBv1-exposed Windows host is missing MS17-010 (CVE-2017-0144).",
-      "example": "SMBv1 plus missing MS17-010 on two Windows hosts.",
+      "description": "The target CVE remains open on the asset and the finding carries exploit or patch signals that determine the interim control path.",
+      "example": "A CVE-scoped finding remains open on an asset while the scanner reports a patch available; the asset is still exposed until the patch is verified.",
       "detector": "unpatched_exploitable",
       "params": {
-        "cves": ["CVE-2017-0144"],
+        "legacy_cves": ["CVE-2017-0144"],
         "name_markers": ["MS17-010", "ETERNALBLUE"],
         "service_markers": ["smb", "cifs"]
       },
-      "data_sources": ["Tenable findings export", "Tenable plugin metadata"],
-      "evidence": ["plugin name/CVE", "SMB service/port", "plugin output"],
-      "remediation": "Apply the MS17-010 patch, disable SMBv1, and block TCP/445 at segment boundaries.",
+      "data_sources": ["Tenable findings export", "Tenable plugin metadata", "exploit signals"],
+      "evidence": ["plugin name/CVE", "finding state", "exploit signals", "patch availability", "SMB service/port for MS17-010"],
+      "remediation": "Apply the vendor patch or the advisory's fixed version, then verify with a fresh scan. Use compensating controls only as an interim path.",
       "action": "Patch path plus compensating controls; containment candidate; high KRI score.",
       "stage": "kri_scoring"
     },
@@ -129,9 +129,46 @@
       },
       "data_sources": ["EDR connector"],
       "evidence": ["infection_status", "behavioral_matches"],
-      "remediation": "Isolate, hand off to SOC for triage, and do not restore until the host is cleared.",
-      "action": "Immediate critical alert; containment; SOC handoff; restore blocked.",
+      "remediation": "Isolate; restore only after verified remediation and Human Approval.",
+      "action": "Containment; isolate; restore only after verified remediation and Human Approval.",
       "stage": "verification"
+    },
+    {
+      "id": "KRI-08",
+      "name": "Vulnerable runtime version",
+      "category": "runtime_currency",
+      "severity": "critical",
+      "description": "A runtime product identified by CPE (for example PHP or Node.js) is inside the advisory's affected version range and below the fixed version, or is on an unsupported branch with no vendor fix.",
+      "example": "PHP 8.4.26 is below the fixed 8.4.27 for CVE-2026-109618; Node.js 22.22.0 is below 22.23.4 for CVE-2026-111497.",
+      "detector": "vulnerable_runtime_version",
+      "params": {},
+      "data_sources": [
+        "Tenable finding CPE (product and version)",
+        "verified advisory version ranges and fixed versions"
+      ],
+      "evidence": ["runtime product", "installed version", "affected range", "fixed version", "support status"],
+      "remediation": "Upgrade the runtime to the advisory fixed version for the asset's branch, or apply the vendor's documented source backport; verify the reported version after the change.",
+      "action": "Patch path with the exact target version; if no vendor fix exists for the branch, compensating controls and a migration plan.",
+      "stage": "kri_scoring"
+    },
+    {
+      "id": "KRI-09",
+      "name": "Externally exposed vulnerable service",
+      "category": "exposure",
+      "severity": "high",
+      "description": "The vulnerable finding is associated with a web listener (port/service) or an asset exposure score at/above the configured threshold.",
+      "example": "A PHP finding on TCP/443 with an asset exposure score of 850/1000.",
+      "detector": "external_exposure",
+      "params": {
+        "ports": [80, 443, 8080, 8443, 3000, 8000],
+        "services": ["http", "https", "http-alt", "ssl/http"],
+        "aes_threshold": 700
+      },
+      "data_sources": ["Tenable finding port/service", "Tenable asset exposure score (AES)"],
+      "evidence": ["port", "service", "asset exposure score"],
+      "remediation": "Reduce external exposure (WAF/IPS/firewall) while patching, then confirm the listener is no longer exposed to untrusted networks.",
+      "action": "Prioritize containment or WAF/IPS compensating controls; high KRI score.",
+      "stage": "kri_scoring"
     }
   ]
 }
