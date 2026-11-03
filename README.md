@@ -1,17 +1,14 @@
 # SecOps Autopilot
 
-**Carry a vulnerability from a scanner finding to a Human-Approval-gated containment,
-a recorded remediation submission, and a verified, evidenced fix.**
+**Carry security risk from vulnerability or zero-day detection through KRI-driven containment, remediation, and a verified, evidenced fix.**
 
-SecOps teams own the gap between "a CVE affects us" and "the fix is verified on
-every affected box." Closing it means stitching together the vulnerability
-scanner, the asset inventory, the EDR console, the patch-management portal, the NAC, and the
-ticketing system — then chasing owners by hand.
+SecOps Autopilot is an AI agent that automates the ongoing Key Risk Indicator (KRI) process. It starts with an identified vulnerability or zero-day from Tenable Vulnerability Management, Tenable Security Center, or other security intelligence sources, identifies the affected endpoints and servers, and evaluates their security posture, including applied controls, versions, security feeds, operating modes, and compliance status.
 
-SecOps Autopilot automates that chain for **Tenable Vulnerability Management** and
-**Tenable Security Center**, stops at every state change for a recorded Human
-Approval, and produces an audit-ready evidence package as it runs. It is an
-orchestration layer, not another scanner.
+The agent determines the relevant KRIs and orchestrates the response across security and IT systems. When a patch is unavailable, it provides the responsible team with a verified workaround. For non-compliant or high-risk endpoints, it can use Network Admission Control (NAC) to quarantine or isolate the device, coordinate remediation, verify that the required fix or controls have been successfully applied, and restore compliant devices to normal network access.
+
+Every security-impacting state change, including containment, remediation, and restoration, is protected by a recorded human approval gate, maintaining human control over consequential actions.
+
+By connecting vulnerability management, Asset Inventory, Security Contorls, patch management, NAC solution, and ticketing, SecOps Autopilot eliminates the manual work of switching between consoles and chasing system owners. It shortens the path from “risk identified” to “verified fix”, continuously tracks KRI status, and produces an audit-ready evidence package documenting approvals, containment actions, remediation, verification, and compliance restoration.
 
 ## What it does
 
