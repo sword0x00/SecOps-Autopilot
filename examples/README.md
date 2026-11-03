@@ -23,7 +23,7 @@ match,owner,team,email
 ```
 
 A missing row is recorded as `owner: unknown` with the reason
-`no CMDB owner mapping configured`. It is never filled from a guess.
+`no asset inventory owner mapping configured`. It is never filled from a guess.
 
 ## Controls
 
@@ -48,12 +48,15 @@ match,edr_present,edr_vendor,edr_version,edr_baseline_version,edr_last_seen,edr_
 | KRI-02 Stale control version | `edr_version`/`edr_baseline_version`, `av_version`/`av_baseline_version` |
 | KRI-03 Stale threat feeds | `edr_feed_age_hours`, `av_signature_age_hours` (24h SLA) |
 | KRI-04 Detect-only mode | `edr_mode`, `av_mode`, `app_control_mode` |
-| KRI-05 Unpatched exploitable host | Tenable findings for MS17-010/CVE-2017-0144 |
+| KRI-05 Unresolved exploitable vulnerability | Tenable findings for the target CVE; legacy MS17-010 markers optional |
 | KRI-06 NAC non-compliant posture | `nac_compliant` / `nac_posture`, `nac_policy` |
 | KRI-07 Active compromise | EDR `infection_status`, `behavioral_matches` |
+| KRI-08 Vulnerable runtime version | Finding CPE product/version + advisory fixed version (not this CSV) |
+| KRI-09 Externally exposed vulnerable service | Finding port/service + Tenable AES (not this CSV) |
 
 The example rows intentionally include DC01, WS-FIN-042, and WS-MKT-011 so the
-seven-KRI catalog can be demonstrated without changing a real control plane.
+control-plane KRIs can be demonstrated without changing a real control plane.
+KRI-08/09 are exercised by the PHP/Node.js validation scenarios.
 
 ## EDR status fixture
 
@@ -74,9 +77,9 @@ Copy it to `.state/edr_status.json` before `secops verify`:
 }
 ```
 
-The engine will create a simulated SOC case and refuse to restore that asset.
-With no fixture and no EDR connector, infection status remains `unknown`; it is
-never treated as clean.
+The engine will escalate that asset and refuse to restore it. With no fixture
+and no EDR connector, infection status remains `unknown`; it is never treated as
+clean.
 
 ## Try it
 
