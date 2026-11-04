@@ -15,7 +15,7 @@ from .errors import ConfigError
 from .util import redact_text
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_USER_AGENT = "SecOps-Autopilot/0.1.0 (SWARM Tenable Hackathon)"
+DEFAULT_USER_AGENT = "SecOps-Autopilot/0.2.0 (SWARM Tenable Hackathon)"
 
 PROFILES = {
     "default": ("TENABLE_ACCESS_KEY", "TENABLE_SECRET_KEY", "TENABLE_USER_AGENT"),
@@ -190,6 +190,7 @@ class Settings:
     isolate_threshold: float = 80.0
     remediation_vlan: str = "999"
     quarantine_policy: str = "SECOPS-QUARANTINE"
+    verification_max_scan_age_hours: float = 72.0
     source_preference: str = "auto"
     dry_run: bool = False
     secrets: tuple[str, ...] = field(default_factory=tuple)
@@ -263,6 +264,9 @@ class Settings:
             isolate_threshold=_env_float("SECOPS_ISOLATE_THRESHOLD", 80.0),
             remediation_vlan=_env("SECOPS_REMEDIATION_VLAN", "999") or "999",
             quarantine_policy=_env("SECOPS_QUARANTINE_POLICY", "SECOPS-QUARANTINE") or "SECOPS-QUARANTINE",
+            verification_max_scan_age_hours=_env_float(
+                "SECOPS_VERIFICATION_MAX_SCAN_AGE_HOURS", 72.0
+            ),
             source_preference=source,
             secrets=secrets,
         )
@@ -301,6 +305,7 @@ class Settings:
             "isolate_threshold": self.isolate_threshold,
             "remediation_vlan": self.remediation_vlan,
             "quarantine_policy": self.quarantine_policy,
+            "verification_max_scan_age_hours": self.verification_max_scan_age_hours,
             "runs_dir": str(self.runs_dir),
             "state_dir": str(self.state_dir),
         }

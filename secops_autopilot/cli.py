@@ -11,27 +11,29 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__
+from .advisory import load_advisory
 from .config import Settings
 from .connectors.base import VulnerabilitySource
 from .connectors.edr import SimulatedEDR
-from .connectors.itsm import SimulatedITSM
+from .connectors.ticketing import SimulatedTicketingSystem
 from .connectors.nac import build_nac
-from .connectors.siem import SimulatedSIEM
 from .connectors.tenable_sc import TenableSCClient
 from .connectors.tenable_vm import TenableVMClient
 from .controls import ControlInventory, OwnerDirectory
 from .errors import ConnectorError, SecOpsError
 from .models import (
     GATE_CONTAINMENT,
+    GATE_PATCH,
     GATE_REMEDIATION,
     GATE_RESTORE,
     GATE_TICKET,
 )
 from .pipeline import Pipeline
+from .stages.contracts import CONTRACTS
 from .store import RunStore
 from .util import utc_now
 
-GATES = [GATE_TICKET, GATE_REMEDIATION, GATE_CONTAINMENT, GATE_RESTORE]
+GATES = [GATE_TICKET, GATE_REMEDIATION, GATE_PATCH, GATE_CONTAINMENT, GATE_RESTORE]
 
 
 # -- terminal helpers ---------------------------------------------------
@@ -55,7 +57,7 @@ def _tier(text: str) -> str:
 def _status(text: str) -> str:
     if text in {"verified_remediated", "restored", "complete"}:
         return _paint(text, "32")
-    if text in {"escalated_to_soc", "remediation_rejected", "intake_failed"}:
+    if text in {"escalated", "remediation_rejected", "intake_failed"}:
         return _paint(text, "31")
     if text.startswith("awaiting"):
         return _paint(text, "33")
@@ -158,10 +160,9 @@ def _pipeline(
         settings,
         source,
         store,
-        SimulatedITSM(settings.state_dir),
+        SimulatedTicketingSystem(settings.state_dir),
         build_nac(settings),
         SimulatedEDR(settings.state_dir),
-        SimulatedSIEM(settings.state_dir),
         owners=OwnerDirectory(owners_path),
         controls=ControlInventory(controls_path),
         kri_catalog_path=kri_catalog_path,
@@ -277,7 +278,12 @@ def cmd_run(args: argparse.Namespace) -> int:
         controls_path=args.controls,
         kri_catalog_path=args.kri_catalog,
     )
-    run = pipeline.run(args.cve, date_range=args.date_range, max_assets=args.max_assets)
+    run = pipeline.run(
+        args.cve,
+        date_range=args.date_range,
+        max_assets=args.max_assets,
+        advisory=load_advisory(args.advisory) if args.advisory else None,
+    )
     if args.json:
         print(json.dumps(_run_summary(run), indent=2, default=str))
         return 0
@@ -349,6 +355,31 @@ def cmd_approve(args: argparse.Namespace) -> int:
             ],
             width=40,
         ))
+    if args.gate == GATE_PATCH and run.patch_execution:
+        patch = run.patch_execution
+        print(
+            f"\nPatch execution: {patch.get('status')} · "
+            f"submitted {patch.get('submitted', 0)} · "
+            f"simulated {patch.get('simulated')}"
+        )
+        jobs = patch.get("jobs") or []
+        if jobs:
+            print(_table(
+                ["Job", "Asset", "Target", "Status", "Touched host"],
+                [
+                    [
+                        item.get("job_id"),
+                        item.get("hostname"),
+                        item.get("target_version"),
+                        item.get("status"),
+                        item.get("touched_host"),
+                    ]
+                    for item in jobs
+                ],
+                width=34,
+            ))
+        for item in patch.get("skipped") or []:
+            print(f"  skipped {item.get('hostname')}: {item.get('reason')}")
     if run.next_actions:
         print("\nNext:")
         for action in run.next_actions:
@@ -474,6 +505,33 @@ def cmd_runs(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_stages(args: argparse.Namespace) -> int:
+    rows = [contract.to_dict() for contract in CONTRACTS]
+    if args.json:
+        print(json.dumps(rows, indent=2, default=str))
+        return 0
+    print(_table(
+        ["#", "Stage", "Method", "Kind", "Gate", "Read-only", "Idempotent", "Outputs"],
+        [
+            [
+                item["methodology_stage"],
+                item["name"],
+                item["id"],
+                item["kind"],
+                item.get("approval_gate") or "—",
+                item.get("read_only"),
+                item.get("idempotent"),
+                ", ".join(item.get("produces") or []),
+            ]
+            for item in rows
+        ],
+        width=38,
+    ))
+    print("\nMethodology stages 9 and 10 are merged into verification + recovery; "
+          "verification is a read, recovery is a separate approval.")
+    return 0
+
+
 def _print_kri_register(run: Any) -> None:
     detections = run.kri_detections or []
     kri_ids = sorted(
@@ -518,6 +576,18 @@ def _run_summary(run: Any) -> dict[str, Any]:
             "affected_assets": vulnerability.get("affected_asset_count"),
             "exploited_in_wild": vulnerability.get("exploited_in_wild"),
             "patch_available": vulnerability.get("patch_available"),
+            "advisory": (
+                {
+                    "id": (vulnerability.get("advisory") or {}).get("id"),
+                    "source": (vulnerability.get("advisory") or {}).get("source"),
+                    "provenance": (
+                        vulnerability.get("advisory") or {}
+                    ).get("provenance"),
+                    "fixed_versions": vulnerability.get("fixed_versions"),
+                }
+                if vulnerability.get("advisory")
+                else None
+            ),
         },
         "assets": [
             {
@@ -544,6 +614,7 @@ def _run_summary(run: Any) -> dict[str, Any]:
         "ticket": ticket or None,
         "approvals": run.approvals,
         "containment": run.containment,
+        "patch_execution": run.patch_execution,
         "verification": {
             "remediated": verification.get("remediated_count"),
             "still_affected": verification.get("still_affected_count"),
@@ -574,7 +645,6 @@ def _run_summary(run: Any) -> dict[str, Any]:
                 if item.get("status") == "detected"
             ],
         },
-        "alerts": len(run.alerts or []),
         "unknowns": len(
             [
                 unknown
@@ -602,13 +672,21 @@ def _print_run(run: Any, *, detail: bool = False) -> None:
             f"patch: {_fmt(vulnerability.get('patch_available'))} · "
             f"confidence: {vulnerability.get('confidence')}"
         )
+        advisory = vulnerability.get("advisory") or {}
+        if advisory:
+            provenance = advisory.get("provenance") or {}
+            print(
+                f"Advisory: {advisory.get('source')} "
+                f"[{provenance.get('status', 'provided')}] · "
+                f"fixed {', '.join(str(item.get('fixed')) for item in vulnerability.get('fixed_versions') or []) or 'unknown'}"
+            )
     if run.exposure:
         print(f"\nAffected assets: {len(run.exposure)}")
         plan_by_uuid = {
             item.get("asset_uuid"): item for item in plan.get("per_asset") or []
         }
         print(_table(
-            ["Asset", "Address", "MAC", "Agent", "KRI", "Tier", "Path", "Contain"],
+            ["Asset", "Address", "MAC", "Agent", "KRI", "Tier", "Path", "Target", "Contain"],
             [
                 [
                     (asset.get("asset") or {}).get("hostname"),
@@ -618,6 +696,7 @@ def _print_run(run: Any, *, detail: bool = False) -> None:
                     (asset.get("risk") or {}).get("score"),
                     (asset.get("risk") or {}).get("tier"),
                     (plan_by_uuid.get((asset.get("asset") or {}).get("uuid")) or {}).get("path"),
+                    (plan_by_uuid.get((asset.get("asset") or {}).get("uuid")) or {}).get("target_version"),
                     (plan_by_uuid.get((asset.get("asset") or {}).get("uuid")) or {}).get("containment_recommended"),
                 ]
                 for asset in run.exposure
@@ -632,6 +711,13 @@ def _print_run(run: Any, *, detail: bool = False) -> None:
             f"\nPlan: patch {_fmt(patch.get('available'))} · "
             f"{len(plan.get('compensating_controls') or [])} control(s) · "
             f"sha256 {str(plan.get('plan_sha256'))[:16]}…"
+        )
+    if run.patch_execution:
+        execution = run.patch_execution
+        print(
+            f"Patch execution: {execution.get('status')} · "
+            f"submitted {execution.get('submitted', 0)} · "
+            f"simulated {execution.get('simulated')}"
         )
     if run.ticket:
         print(f"Ticket: {run.ticket.get('ticket_id')} — {run.ticket.get('status')}")
@@ -722,6 +808,14 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--owners", default=None, help="CSV mapping assets to owners")
     run.add_argument("--controls", default=None, help="CSV with EDR/AV/control posture")
     run.add_argument(
+        "--advisory",
+        default=None,
+        help=(
+            "JSON advisory metadata with product version ranges, fixed versions, "
+            "mitigations, and provenance"
+        ),
+    )
+    run.add_argument(
         "--kri-catalog",
         default=None,
         help="Path to a KRI catalog JSON (default: packaged kri_catalog.json)",
@@ -769,6 +863,12 @@ def build_parser() -> argparse.ArgumentParser:
     _common(runs)
     runs.add_argument("--json", action="store_true")
     runs.set_defaults(func=cmd_runs)
+
+    stages = sub.add_parser(
+        "stages", help="Show stage contracts, gates, and read-only status"
+    )
+    stages.add_argument("--json", action="store_true")
+    stages.set_defaults(func=cmd_stages)
 
     return parser
 

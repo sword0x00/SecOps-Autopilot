@@ -23,6 +23,7 @@ evidence/
 .state/
 .cache/
 *.log
+.claude/worktrees/
 
 # Build / test output
 build/

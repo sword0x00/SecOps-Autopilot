@@ -9,7 +9,7 @@ in `secops_autopilot/connectors/`.
 
 ```http
 X-ApiKeys: accessKey=<access>; secretKey=<secret>;
-User-Agent: SecOps-Autopilot/0.1.0 (SWARM-Tenable-Hackathon; security-team@example.com)
+User-Agent: SecOps-Autopilot/0.2.0 (SWARM-Tenable-Hackathon; security-team@example.com)
 Accept: application/json
 ```
 

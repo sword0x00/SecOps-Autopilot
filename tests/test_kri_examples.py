@@ -92,7 +92,7 @@ class KRIExampleMappingTest(unittest.TestCase):
         self.assertEqual(matrix[("WS-FIN-042", "KRI-04")], DETECTED)
         self.assertEqual(matrix[("WS-FIN-042", "KRI-06")], DETECTED)
 
-        self.assertEqual(matrix[("WS-MKT-011", "KRI-07")], DETECTED)
+        self.assertNotIn(("WS-MKT-011", "KRI-07"), matrix)
         self.assertEqual(matrix[("WIN-01", "KRI-05")], DETECTED)
         self.assertEqual(matrix[("WIN-02", "KRI-05")], DETECTED)
 

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from .advisory import runtime_matches
 from .models import (
     AssetAssessment,
     AssetPlan,
@@ -97,12 +98,12 @@ def _controls_for(mechanism: str, cve: str, findings: list) -> list[Compensating
         limitations="does not cover encrypted channelling, same-segment traffic, "
         "or endpoint-local exploitation; signature must exist and be enabled",
     )
-    siem = _control(
-        "siem_rule",
+    detection = _control(
+        "detection_rule",
         "Detect exploitation attempts and post-exploitation activity for this CVE.",
         cve=cve,
         reference=reference,
-        coverage="detection and SOC escalation; not prevention",
+        coverage="detection and escalation; not prevention",
         limitations="log source coverage and tuning must be validated; detection "
         "does not block the exploit",
     )
@@ -129,7 +130,7 @@ def _controls_for(mechanism: str, cve: str, findings: list) -> list[Compensating
                 limitations="requires reboot/change control and application "
                 "compatibility testing; does not patch SMBv2/3",
             ),
-            siem,
+            detection,
         ]
     if mechanism == "http":
         return [
@@ -143,7 +144,7 @@ def _controls_for(mechanism: str, cve: str, findings: list) -> list[Compensating
                 "attacks that reach the origin directly; false positives are possible",
             ),
             ips,
-            siem,
+            detection,
         ]
     if mechanism == "tls":
         return [
@@ -158,7 +159,7 @@ def _controls_for(mechanism: str, cve: str, findings: list) -> list[Compensating
                 "application-layer vulnerabilities",
             ),
             ips,
-            siem,
+            detection,
         ]
     if mechanism == "shell":
         return [
@@ -181,7 +182,7 @@ def _controls_for(mechanism: str, cve: str, findings: list) -> list[Compensating
                 coverage="reduces reachable attack surface",
                 limitations="does not protect allowed sources or host-local paths",
             ),
-            siem,
+            detection,
         ]
     return [
         ips,
@@ -193,32 +194,100 @@ def _controls_for(mechanism: str, cve: str, findings: list) -> list[Compensating
             coverage="reduces exposure from untrusted networks",
             limitations="does not protect allowed sources or same-segment traffic",
         ),
-        siem,
+        detection,
     ]
 
 
-def _workarounds(mechanism: str, cve: str, findings: list) -> list[dict[str, Any]]:
+def _workarounds(
+    mechanism: str,
+    cve: str,
+    findings: list,
+    mitigations: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
     reference = _reference(cve, findings)
-    common = {"source": "engine recommendation (not vendor-verified)", "verified": False, "reference": reference}
+    common = {
+        "source": "engine recommendation (not vendor-verified)",
+        "verified": False,
+        "reference": reference,
+    }
+    supplied = [
+        {
+            "source": str(item.get("source") or "advisory"),
+            "verified": bool(item.get("verified", False)),
+            "reference": str(item.get("reference") or reference),
+            "action": item.get("action"),
+            "scope": item.get("scope") or "affected runtime",
+            "limitations": item.get("limitations"),
+        }
+        for item in (mitigations or [])
+        if item.get("action")
+    ]
     if mechanism == "smb":
-        return [
+        return supplied + [
             {**common, "action": "Disable SMBv1 on affected hosts.", "scope": "Windows hosts exposing TCP/445"},
             {**common, "action": "Block TCP/445 at segment boundaries.", "scope": "network path to affected hosts"},
         ]
     if mechanism == "shell":
-        return [
+        return supplied + [
             {**common, "action": "Disable CGI or shell-backed web handlers that are not required.", "scope": "web servers exposing CGI"},
             {**common, "action": "Reject requests containing crafted Bash function definitions in headers.", "scope": "HTTP ingress"},
         ]
     if mechanism == "http":
-        return [
+        return supplied + [
             {**common, "action": "Apply the vendor's documented mitigation or disable the vulnerable feature until patched.", "scope": "affected application"},
         ]
     if mechanism == "tls":
-        return [
+        return supplied + [
             {**common, "action": "Disable SSLv2/SSLv3 and weak cipher suites.", "scope": "exposed TLS services"},
         ]
-    return []
+    return supplied
+
+
+def _runtime_target(
+    assessment: AssetAssessment, vulnerability: VulnerabilityRecord
+) -> tuple[str | None, str | None, str | None, dict[str, Any] | None]:
+    """Return (product, installed version, fixed version, match) for one asset.
+
+    The match is taken from CPE data and the advisory's affected ranges. If the
+    CPE does not identify a product/version, every field is None and the caller
+    falls back to the scanner's patch flag without inventing a target.
+    """
+    matches = runtime_matches(assessment.findings, vulnerability.advisory)
+    if not matches:
+        return None, None, None, None
+    affected = [item for item in matches if item.get("in_range") is True]
+    if not affected:
+        # The finding exists, but the CPE version is outside every advisory
+        # affected range. Do not borrow a fixed version from an unrelated branch;
+        # the finding may be stale and must be verified.
+        chosen = matches[0]
+        return (
+            chosen.get("product"),
+            chosen.get("version"),
+            None,
+            chosen,
+        )
+    chosen = next(
+        (item for item in affected if item.get("fixed")),
+        affected[0],
+    )
+    return (
+        chosen.get("product"),
+        chosen.get("version"),
+        chosen.get("fixed"),
+        chosen,
+    )
+
+
+def _package_for(product: str | None) -> str | None:
+    if not product:
+        return None
+    normalized = str(product).lower()
+    if normalized == "php":
+        return "php"
+    if normalized in {"node.js", "nodejs", "node"}:
+        return "nodejs"
+    return str(product)
 
 
 def build_plan(
@@ -246,29 +315,55 @@ def build_plan(
         for ref in assessment.patch_refs
     )
     controls = _controls_for(mechanisms, vulnerability.id, findings)
-    workarounds = _workarounds(mechanisms, vulnerability.id, findings)
+    workarounds = _workarounds(
+        mechanisms, vulnerability.id, findings, vulnerability.mitigation_steps
+    )
 
     per_asset: list[AssetPlan] = []
     for assessment in assessments:
         kri_ids = set(assessment.kri_ids)
-        active_compromise = "KRI-07" in kri_ids
         nac_noncompliant = "KRI-06" in kri_ids
-        if active_compromise:
-            path = "isolate"
-            reason = (
-                "KRI-07 active compromise: isolate now and hand off to SOC; "
-                "patch after containment."
-            )
-        elif assessment.patch_available is True:
+        runtime_product, runtime_version, target_version, runtime_match = (
+            _runtime_target(assessment, vulnerability)
+        )
+        asset_patch_available = assessment.patch_available
+        runtime_reason = ""
+        if runtime_match is not None:
+            if runtime_match.get("in_range") is True and runtime_match.get("fixed"):
+                asset_patch_available = True
+                runtime_reason = (
+                    f"{runtime_product} {runtime_version} is below the advisory "
+                    f"fixed version {target_version} for branch "
+                    f"{runtime_match.get('branch') or 'unspecified'}."
+                )
+            elif runtime_match.get("in_range") is True and not runtime_match.get("fixed"):
+                asset_patch_available = False
+                runtime_reason = (
+                    f"{runtime_product} {runtime_version} is in the advisory's "
+                    f"affected branch {runtime_match.get('branch') or 'unspecified'}, "
+                    "but the advisory records no vendor fixed version for that "
+                    "branch; compensating controls and migration are required."
+                )
+            elif runtime_match.get("in_range") is False:
+                runtime_reason = (
+                    f"{runtime_product} {runtime_version} is outside the advisory "
+                    "affected range; the scanner finding may be stale. Verify before "
+                    "changing the runtime."
+                )
+        if asset_patch_available is True:
             path = "patch"
-            reason = "Tenable reports a patch is available for this detection."
-        elif assessment.patch_available is False:
+            reason = runtime_reason or (
+                "A patch path is available for this detection."
+            )
+        elif asset_patch_available is False:
             path = "compensate" if controls else "isolate"
-            reason = "Tenable reports no patch; compensating controls are the interim path."
+            reason = runtime_reason or (
+                "No patch path is available; compensating controls are the interim path."
+            )
         else:
             path = "compensate" if controls else "isolate"
-            reason = (
-                "Patch availability is unknown in Tenable metadata; treat as "
+            reason = runtime_reason or (
+                "Patch availability is unknown in scanner metadata; treat as "
                 "unpatchable until the owner confirms a patch path."
             )
         gap = assessment.control.control_gap_score
@@ -280,18 +375,15 @@ def build_plan(
                 f"KRI risk score {assessment.risk.score:.1f} >= threshold {isolate_threshold:.1f}"
             )
         if assessment.control.agent_present is False:
-            triggers.append("Tenable reports no endpoint agent")
+            triggers.append("Scanner reports no endpoint agent")
         if gap >= CONTAINMENT_CONTROL_GAP:
             triggers.append(f"control gap {gap:.1f}/10")
         if nac_noncompliant:
             triggers.append("KRI-06 NAC non-compliance")
-        if active_compromise:
-            triggers.append("KRI-07 active compromise requires isolation")
         if path != "patch":
             triggers.append(f"remediation path is {path}")
         containment = (
             path == "isolate"
-            or active_compromise
             or nac_noncompliant
             or (
                 assessment.risk.score >= isolate_threshold
@@ -321,22 +413,40 @@ def build_plan(
                 kri_score=assessment.risk.score,
                 kri_tier=assessment.risk.tier,
                 kri_ids=sorted(kri_ids),
+                runtime_product=runtime_product,
+                runtime_version=runtime_version,
+                target_version=target_version if path == "patch" else None,
+                package=_package_for(runtime_product),
             )
         )
 
     notes = [
         "Patch prerequisites, rollback steps, and effort are not present in Tenable "
-        "plugin metadata; they are recorded as unknown rather than guessed.",
+        "plugin metadata or advisory fixed-version data; they are recorded as unknown "
+        "rather than guessed.",
         "Compensating controls are not equivalent to a patch and remain unverified "
         "until tested in the target environment.",
     ]
+    if vulnerability.advisory:
+        provenance = (vulnerability.advisory or {}).get("provenance") or {}
+        notes.append(
+            f"Advisory metadata: {vulnerability.advisory.get('source')} "
+            f"[{provenance.get('status', 'provided')}]. Target versions are taken "
+            "only from the advisory's affected ranges for the asset's runtime branch."
+        )
+        if provenance.get("status") != "verified":
+            notes.append(
+                "Advisory provenance is not marked verified; treat fixed-version "
+                "claims as unverified input until confirmed by the owner."
+            )
     if patch_available is None:
         notes.append("Patch availability is unknown; confirm with the asset owner/vendor.")
     notes.append(
         "Containment is proposed when the KRI risk score is at/above the threshold "
         f"and the control gap is at least {CONTAINMENT_CONTROL_GAP}/10, the agent is "
-        "absent, the patch path is not available, KRI-06 is detected, or KRI-07 is "
-        "detected. KRI-07 forces the isolate path. It remains a proposal until approval."
+        "absent, the patch path is not available, or KRI-06 is detected. KRI-06 "
+        "always makes the asset a containment candidate. It remains a proposal until "
+        "approval."
     )
     if mechanisms == "smb":
         notes.append(
@@ -350,11 +460,23 @@ def build_plan(
         patch_path={
             "available": patch_available,
             "patch_refs": patch_refs,
+            "fixed_versions": vulnerability.fixed_versions,
+            "target_versions_by_asset": {
+                item.asset_uuid: item.target_version
+                for item in per_asset
+                if item.target_version
+            },
             "prerequisites": [],
-            "prerequisites_note": "unknown — not provided by Tenable plugin metadata",
-            "rollback": "unknown — not provided by Tenable plugin metadata",
+            "prerequisites_note": (
+                "unknown — not provided by scanner plugin metadata or advisory "
+                "fixed-version data"
+            ),
+            "rollback": "unknown — not provided by scanner plugin metadata",
             "estimated_effort": "unknown",
-            "evidence": "Tenable plugin has_patch flag plus solution / KB / advisory text",
+            "evidence": (
+                "Scanner has_patch flag plus solution text plus verified advisory "
+                "fixed versions and affected ranges"
+            ),
         },
         compensating_controls=controls,
         workarounds=workarounds,

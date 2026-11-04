@@ -1,8 +1,9 @@
-"""ITSM connectors.
+"""Ticketing-system connectors.
 
-``SimulatedITSM`` is the safe default: it records tickets as JSON so the
-approval chain is demonstrable without touching ServiceNow or Jira. A real
-connector implements the same four methods from ``connectors.base.ITSMConnector``.
+``SimulatedTicketingSystem`` is the safe default: it records tickets as JSON so
+the approval chain is demonstrable without touching ServiceNow, Jira, or another
+ticketing system. A real connector implements the same four methods from
+``connectors.base.TicketingConnector``.
 """
 
 from __future__ import annotations
@@ -15,18 +16,18 @@ from ..util import utc_now
 from .state import JsonState
 
 
-class SimulatedITSM:
-    name = "simulated_itsm"
+class SimulatedTicketingSystem:
+    name = "simulated_ticketing"
     live = False
     simulated = True
 
     def __init__(self, state_dir: Path) -> None:
-        self.state = JsonState(state_dir / "itsm.json")
+        self.state = JsonState(state_dir / "ticketing.json")
 
     def create_ticket(self, payload: dict[str, Any]) -> dict[str, Any]:
         def mutate(data: dict[str, Any]) -> dict[str, Any]:
             next_id = int(data.get("next_id", 1))
-            ticket_id = f"SIM-ITS-{next_id:06d}"
+            ticket_id = f"SIM-TKT-{next_id:06d}"
             data["next_id"] = next_id + 1
             ticket = {
                 "ticket_id": ticket_id,
@@ -52,7 +53,7 @@ class SimulatedITSM:
         def mutate(data: dict[str, Any]) -> dict[str, Any]:
             ticket = (data.get("tickets") or {}).get(ticket_id)
             if not ticket:
-                raise ConnectorError(f"ITSM ticket {ticket_id} does not exist")
+                raise ConnectorError(f"Ticketing-system ticket {ticket_id} does not exist")
             ticket["status"] = status
             ticket["updated_at"] = utc_now()
             if approver:

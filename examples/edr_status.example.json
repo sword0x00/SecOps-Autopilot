@@ -23,11 +23,9 @@
       "vendor": "ExampleEDR",
       "version": "7.2.0",
       "feed_age_hours": 4,
-      "infection_status": "unknown",
-      "behavioral_matches": [
-        "Synthetic behavioral match: PowerShell spawned by an Office process beaconing to a new external endpoint"
-      ],
-      "detail": "Example fixture: EDR behavioral match, infection status not yet confirmed."
+      "infection_status": "none_reported",
+      "behavioral_matches": [],
+      "detail": "Example fixture: EDR is present and healthy; status is baseline evidence."
     }
   }
 }

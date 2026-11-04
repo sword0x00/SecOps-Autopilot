@@ -1,143 +1,301 @@
-# Playbook: Vulnerability to Verified Fix
+# Playbook — Vulnerability to verified fix
 
-The end-to-end chain. One vulnerability in, one evidenced fix out.
+**Purpose:** move one identified vulnerability (CVE, vendor advisory, zero-day
+report, or scanner export) from intake to a verified, evidenced fix without
+bypassing human authorization or inventing missing facts.
 
-## Chain
+**Applies to:** an affected asset fleet visible to the configured scanner. The
+engine is an orchestration layer, not a scanner and not an exploit framework.
+
+**Entry criteria**
+
+- A target identifier (`CVE-YYYY-NNNN`) and a scanner/tenant scope.
+- For runtime-specific remediation: an advisory JSON with affected ranges,
+  fixed versions, and provenance (see `examples/` for an advisory JSON example).
+- Optional but recommended: owner CSV, control inventory CSV, and a patch
+  management connector.
+
+**Exit criteria**
+
+- The target is no longer reported by a fresh scanner read on every affected
+  asset, or the remaining assets are explicitly open/escalated.
+- Every containment, patch submission, and restore has a recorded approver.
+- The evidence manifest verifies, and the report labels live vs simulated data.
+
+## Roles
+
+| Role | Responsibility | Gates |
+|---|---|---|
+| SecOps operator | Runs intake through planning, prepares evidence, coordinates owners | — |
+| Asset owner | Confirms business context, patch window, and rollback | Consulted |
+| Infosec approver | Accepts the remediation plan and compensating controls | `remediation` |
+| SecOps lead | Authorizes containment and restore | `containment`, `restore` |
+| Patch approver | Authorizes patch job submission | `patch` |
+
+No single person should be required for every gate in production. The CLI does
+not enforce separation of duties; that is an organizational control. The
+evidence records who approved what.
+
+## Stage map
+
+The source methodology has eleven stages; stages 9 and 10 are merged here as
+**Verification and recovery** because a verification result must not
+automatically release a quarantined host. The implementation has ten operating
+stages plus an evidence stage.
+
+### Stage 1 — Risk intake
+
+**Input:** CVE, advisory JSON, scanner tenant.
+
+**Actions**
+
+1. Normalize the CVE; reject malformed identifiers.
+2. Query the scanner for the CVE → plugin mapping and per-asset findings.
+3. Merge advisory metadata if supplied. Preserve conflicts; do not overwrite
+   scanner facts silently.
+4. Record confidence, source references, and advisory provenance.
+
+**Output/evidence:** normalized vulnerability record, plugin hits, finding count,
+advisory provenance, source-call log.
+
+**Failure branch**
+
+- No plugin/finding: status `no_exposure_found`; do not proceed to remediation.
+  Confirm scope/window or supply an exposure import.
+- Scanner auth/scope error: status `intake_failed`; no state change.
+
+**Command:** `secops run --cve <CVE> [--advisory <file>]`
+
+### Stage 2 — Exposure and asset resolution
+
+**Actions**
+
+1. Group findings by asset; enrich with asset detail.
+2. Resolve owner/team from the asset inventory export; record `unknown` when no row matches.
+3. Apply `--max-assets`; record every truncated asset ID.
+4. Preserve asset identity keys (UUID, MAC, IPv4, hostnames) for verification.
+
+**Output/evidence:** affected assets with source, owner, criticality, confidence,
+and explicit unknowns.
+
+### Stage 3 — Security control check
+
+**Actions**
+
+1. Read the Tenable agent flag and any agent record the API scope exposes.
+2. Merge EDR/AV presence, versions, feed age, mode, NAC posture, and patch-agent
+   presence from the control inventory or a live connector.
+3. Record every unavailable field as `unknown` with the reason and source.
+4. Compute a control-gap score from the known and unknown state.
+
+**Output/evidence:** per-asset `ControlPosture`, gaps, unknowns, sources.
+
+**Rule:** a missing EDR signal is not evidence that the host is clean.
+
+### Stage 4 — KRI identification and risk scoring
+
+**Actions**
+
+1. Evaluate the eight-indicator KRI register on every affected asset.
+2. Treat `unknown` as unknown, never as clear.
+3. Score each asset from severity, exploitability, exposure, control gap, and
+   criticality; renormalize around unknown components.
+4. Record high/critical exposure and control-gap events in the run.
+
+**Output/evidence:** per-asset KRI matrix, score, tier, drivers, unknown
+components, run events.
+
+**Key decisions**
+
+- KRI-06 (NAC non-compliant) proposes containment.
+- EDR is a baseline control, like AV: it contributes presence, version, feed,
+  and mode evidence, but it does not add a separate active-compromise path.
+- KRI-08 detects a runtime below the advisory fixed version, including an
+  unsupported branch with no vendor fix.
+- KRI-09 detects web exposure or an asset exposure score above threshold.
+
+### Stage 5 — Remediation and workaround selection
+
+**Actions**
+
+1. For each asset, parse the runtime product/version from CPE and select the
+   advisory fixed version for that branch.
+2. If a fixed version exists: path `patch`, record the exact target version.
+3. If the branch has no vendor fix: path `compensate`; record that the target is
+   unknown and why.
+4. Select compensating controls matched to the exploit mechanism. Every control
+   is `verified: false` until tested in the target environment.
+5. Bind the plan to a SHA-256.
+
+**Output/evidence:** patch path with target versions, per-asset plan, controls,
+workarounds, provenance, plan hash.
+
+**Rule:** never invent a patch target. If the advisory cannot name a fixed
+version for the asset's branch, the plan says so and the patch stage submits no
+job.
+
+### Stage 6 — Approval and ticketing
+
+**Gate 1 — `ticket`:** create the ticketing-system ticket, bound to the plan SHA and evidence
+reference. The ticket summary includes asset count, KRI tiers, owner coverage,
+and containment candidates.
+
+**Gate 2 — `remediation`:** the infosec approver accepts or rejects the plan.
+Rejection is terminal for the run and blocks containment and patch execution.
+
+**Output/evidence:** ticket ID/status, approval ledger with approver, time, plan
+SHA, action taken.
+
+### Stage 7 — Containment
+
+**Gate — `containment`:** authorized only after remediation approval.
+
+**Actions**
+
+1. For every asset the plan marks as a containment candidate:
+   - MAC present: quarantine through the NAC connector (ISE ANC or simulator).
+   - MAC absent: record `blocked` with the reason; do not guess an identity.
+2. Record approver, ticket, policy, VLAN, connector, and `simulated` flag.
+3. Record every containment action in the run.
+4. Update the ticket to in-progress.
+
+**Do not:** contain an asset with no recorded approval, or treat a blocked
+identity as contained.
+
+### Stage 8 — Remediation execution
+
+**Gate — `patch`:** authorized after remediation approval; can run before or
+after containment.
+
+**Actions**
+
+1. Build jobs only for assets on the `patch` path with a verified target version.
+2. Submit jobs to the patch connector with run ID, ticket ID, current version,
+   target version, and approver.
+3. Record submitted/skipped/failed jobs; label simulated jobs explicitly.
+4. Record that a job was submitted, not that a host was patched.
+
+**Output/evidence:** patch execution record, per-job status, skipped jobs with
+reasons, approval ledger entry.
+
+**Rule:** a submitted job is not remediation evidence. Only a fresh scanner read
+in stage 9 closes the finding.
+
+### Stage 9 — Verification and recovery
+
+**Verification (read-only):**
+
+1. Re-query the scanner for the CVE's plugin set.
+2. Match assets on every identity key; a finding that remains means
+   `not_remediated`.
+3. Record EDR status as baseline control evidence. It does not escalate, block
+   restore, or keep isolation by itself.
+4. Record new assets that appeared during verification; they keep the run open.
+5. A missing finding after a fresh rescan is the fix evidence. A stale scan is
+   not.
+
+**Recovery (gate `restore`):**
+
+1. Eligible assets: verification status `remediated` and an active quarantine
+   event. EDR status is evidence, not an eligibility filter.
+2. Restore through the NAC; record each event.
+3. Keep isolation for every other asset; keep the run open if anything remains
+   affected or new exposure appeared.
+
+**Output/evidence:** verification result per asset, EDR baseline status, restore
+events, final status.
+
+### Stage 10 — Evidence and compliance
+
+1. Write Markdown and HTML reports from the run records.
+2. Hash every artifact into `manifest.json` / `manifest.sha256`.
+3. Verify with `secops evidence --run <id> --verify`.
+4. Retain the run directory according to the organization's evidence retention
+   policy. The manifest detects modification; it is not a WORM store.
+
+## Gate matrix
+
+| Gate | Authorizes | Required state | Cannot be bypassed by |
+|---|---|---|---|
+| `ticket` | ticketing-system ticket creation | plan exists and hash matches | a direct connector call from the operator |
+| `remediation` | containment and patch eligibility | ticket exists, plan hash matches | editing the plan (hash mismatch) |
+| `containment` | NAC quarantine | remediation approved | ticket status alone |
+| `patch` | patch job submission | remediation approved | a plan without a verified target version |
+| `restore` | NAC restore | fresh verification, isolated event | a green verification alone |
+
+## Decision tree
 
 ```mermaid
 flowchart TD
-    A[Vulnerability report<br/>CVE / advisory / zero-day] --> B[Intake<br/>normalize record]
-    B --> C[Exposure<br/>resolve affected assets]
-    C --> D[Control check<br/>EDR / AV / patch agent]
-    D --> E[KRI register<br/>KRI-01 .. KRI-07]
-    E --> E2[KRI risk score<br/>rank real risk]
-    E2 --> F[Remediation planning<br/>patch + compensating controls]
-    F --> G{ITSM ticket<br/>infosec approval}
-    G -->|approved| H[NAC containment<br/>remediation VLAN]
-    G -->|rejected| F
-    H --> I[Patch + AV]
-    I --> J{Re-check}
-    J -->|compliant| K[Restore to production]
-    J -->|infected| L[EDR + SOC handoff]
-    K --> M[Audit evidence]
-    L --> M
+    A{Target finding present?} -->|no| B[no_exposure_found<br/>confirm scope — stop]
+    A -->|yes| C[Control posture + KRI register]
+    C --> D{Advisory fixed version<br/>for this runtime branch?}
+    D -->|yes| E[Patch path<br/>exact target version]
+    D -->|no| F[Compensate path<br/>WAF/IPS/firewall controls]
+    E --> G{Containment candidate?<br/>KRI-06 or risk at/above threshold}
+    F --> G
+    G -->|yes| H[NAC containment<br/>approval gate + MAC required]
+    G -->|no| I[No containment]
+    H --> J[Human approval: ticket and remediation]
+    I --> J
+    J -->|rejected| L[Stop — no state change]
+    J -->|approved| K[Submit approved patch jobs]
+    K --> M[Verification: fresh scanner read<br/>+ EDR baseline evidence]
+    M -->|remediated| N{Human approval: restore}
+    M -->|still affected| O[Keep isolation<br/>escalate to owner]
+    M -->|stale or unknown scan| P[Keep run open<br/>rerun verification]
+    N -->|approved| Q[Restore]
+    N -->|rejected| O
 ```
 
-## Implementation
+The decision tree is conditional, not a fixed script: each branch is selected
+from scanner evidence, the KRI register, the plan, and the recorded approvals.
+Mermaid renders it as a live diagram in GitHub and most Markdown viewers.
 
-```bash
-# Read-only: intake -> exposure -> control check -> KRI -> plan
-secops run --cve CVE-2017-0144
+## Failure and escalation branches
 
-# Gate 1: create the ITSM ticket
-secops approve --run <RUN_ID> --gate ticket --approver "<name>"
+| Condition | Action | Run status |
+|---|---|---|
+| Scanner auth/scope failure | Stop; fix access; rerun | `intake_failed` |
+| No finding in window | Widen window or confirm scope; do not remediate | `no_exposure_found` |
+| Unsupported runtime branch | Compensate + migration plan; no invented patch target | `awaiting_ticket_approval` → later |
+| No MAC for containment | Record blocked; manual containment/asset inventory enrichment | containment continues for others |
+| Patch connector failure | Record failed jobs; do not claim submission | patch stage error |
+| Verification still affected | Keep isolation; escalate to owner | `verification_open` |
+| New asset during verification | Keep run open; scope new asset | `verification_open` |
+| EDR status unavailable | Record `unknown` as baseline evidence; do not infer clean | unchanged |
+| Plan edited after approval | Reject every gate; re-plan | unchanged |
+| Evidence manifest mismatch | Treat the package as untrusted; investigate | evidence failure |
 
-# Gate 2: infosec approves remediation and enables containment
-secops approve --run <RUN_ID> --gate remediation --approver "<infosec>"
+## Evidence checklist per run
 
-# Gate 3: execute NAC containment for the approved candidates
-secops approve --run <RUN_ID> --gate containment --approver "<name>"
+- [ ] normalized vulnerability + advisory provenance (verified/provided)
+- [ ] affected assets with owner/confidence and truncation record
+- [ ] per-asset control posture with explicit unknowns
+- [ ] KRI matrix (detected/clear/unknown/n/a) and score drivers
+- [ ] remediation plan + plan SHA-256 + target versions
+- [ ] ticket ID and approval ledger (all gates)
+- [ ] containment events including blocked identities
+- [ ] patch execution jobs including skipped jobs and simulation flag
+- [ ] fresh verification results and EDR baseline status
+- [ ] restore events and remaining-isolated list
+- [ ] report Markdown/HTML and verified SHA-256 manifest
 
-# Re-query Tenable and compare to the exposure set
-secops verify --run <RUN_ID>
+## Testing and reporting
 
-# Gate 4: restore only verified-remediated, non-infected assets
-secops approve --run <RUN_ID> --gate restore --approver "<name>"
+- `python3 -m unittest discover -s tests -v` covers contracts, advisory version
+  ranges, KRI behavior, approval gating, patch idempotency, reporting, and
+  executive-summary generation (60 tests).
+- `scripts/live_php_node_batch.py` runs the live read-only batch and writes the
+  consolidated management report in Markdown, HTML, and PDF.
+- The reports label live scanner reads and simulated control-plane connectors.
+  Do not present a simulated connector action as production proof.
 
-# Evidence
-secops report --run <RUN_ID> --format html --verify
-```
+## What this playbook will not do
 
-## KRI detection matrix
-
-The engine evaluates the packaged catalog (`secops_autopilot/kri_catalog.json`)
-for every affected asset. Each result is `detected`, `not_detected` (clear),
-`unknown`, or `not_applicable`; `unknown` is never treated as clear.
-
-| KRI | Detects | Evidence | Routing |
-|---|---|---|---|
-| KRI-01 | Missing security agent | Tenable `has_agent`, EDR/AV presence | Control gap; ticket |
-| KRI-02 | Stale control version | Installed vs approved baseline | Control gap; ticket |
-| KRI-03 | Stale threat feeds | AV signature/EDR feed age > 24h | Degraded detection; ticket |
-| KRI-04 | Detect-only mode | AV/EDR/app-control mode | Compensation; ticket |
-| KRI-05 | Unpatched exploitable host | MS17-010/CVE-2017-0144 finding + SMB | Patch + compensating controls |
-| KRI-06 | NAC non-compliant posture | ISE/control-inventory posture | Containment candidate |
-| KRI-07 | Active compromise | EDR infection/behavioral match | Isolate, SOC handoff, no restore |
-
-The full rules and examples are in
-[`docs/kri-catalog.md`](../docs/kri-catalog.md).
-
-## Stages
-
-### 1. Intake — `secops run`
-Normalize the CVE into one record: Tenable plugin mapping, affected products,
-exploitation signals, patch availability and references, source list, confidence.
-
-**Gate:** low/unknown confidence is recorded and surfaced; it does not proceed to
-containment on its own.
-
-### 2. Exposure — `secops run`
-Resolve affected endpoints and servers from the Tenable findings export. Attach
-an owner from the optional owners CSV. Assets with no owner mapping are flagged,
-not silently dropped.
-
-**Gate:** assets with no owner are flagged.
-
-### 3. Control check — `secops run`
-Per asset: Tenable agent flag, agent record where the API scope permits, last
-scan, and EDR/AV fields from the optional control inventory: version and
-approved baseline, feed age, mode, application-control mode, and NAC posture.
-Every missing field is `unknown` with a reason.
-
-### 4. KRI register and risk score — `secops run`
-First evaluate the seven named KRIs per asset and record the evidence:
-KRI-01 missing agent, KRI-02 stale version, KRI-03 stale feed, KRI-04
-detect-only, KRI-05 unpatched MS17-010, KRI-06 NAC non-compliant, KRI-07 active
-compromise. Then rank by severity, exploitability, exposure, control gap, and
-criticality — not raw CVSS alone. The register matrix, component arithmetic, and
-unknown list are in the report.
-
-### 5. Remediation planning — `secops run`
-Patch path first. For assets that cannot patch on schedule, select compensating
-controls matched to the exploit mechanism (IPS signature, SIEM rule, WAF rule,
-firewall block, configuration change). Every control is `verified: false` until
-tested. Every asset gets a path: `patch`, `compensate`, or `isolate`.
-
-### 6. Ticket — `secops approve --gate ticket`, then `--gate remediation`
-Create the ticket with the plan and evidence. Infosec approval is the second
-gate. The approval binds to the plan SHA-256.
-
-**Gate:** human infosec approval required before stage 7.
-
-### 7. Containment — `secops approve --gate containment`
-NAC (Cisco ISE) moves non-compliant devices to a remediation VLAN. KRI-06
-detections and KRI-07 active compromises are containment candidates even when the
-numeric score is below the default threshold. Assets without a MAC are recorded
-as blocked, not guessed.
-
-**Gate:** requires the stage 6 approval.
-
-### 8. Verification — `secops verify`
-Re-query Tenable. Compliant → restore is proposed. Still affected → isolation is
-retained and the owner is escalated. KRI-07/EDR infected → SOC handoff with the
-evidence and restore is refused.
-
-### 9. Evidence — every stage, then `report`
-The full run record: every stage, approval, containment event, verification
-result, unknown, and the SHA-256 manifest.
-
-## Design principles
-
-- **Approval before action.** Three state-changing gates plus the restore gate.
-- **Unknowns are recorded, never invented.** The evidence package is only as
-  trustworthy as its worst guess — so there are no guesses.
-- **Compensating controls are not patches.** Say what they do not cover.
-- **Read-only until approved.** Stages 1–5 run unattended; stages 6–9 do not.
-- **Simulation is labelled.** ITSM, NAC, EDR, and SIEM are file-backed unless a
-  live connector is configured; the report says which.
-
-## Status
-
-Implemented. Tenable Vulnerability Management is live-tested. The Security Center
-and Cisco ISE adapters follow documented APIs but are marked not live-validated.
-ITSM, EDR, and SIEM default to simulated backends.
+- Invent an owner, agent version, feed age, EDR state, patch target, or rollback.
+- Quarantine an asset with no MAC.
+- Claim a compensating control is verified without a test.
+- Claim a host is clean because no EDR signal exists.
+- Treat a ticket, a patch submission, or a stale scan as a verified fix.
+- Restore an unverified host.

@@ -49,11 +49,20 @@ def evaluate(
 
 
 class KRIRegisterTest(unittest.TestCase):
-    def test_catalog_loads_all_seven(self):
+    def test_catalog_loads_all_eight(self):
         catalog = load_catalog()
         self.assertEqual(
             [item["id"] for item in catalog["kris"]],
-            [f"KRI-0{index}" for index in range(1, 8)],
+            [
+                "KRI-01",
+                "KRI-02",
+                "KRI-03",
+                "KRI-04",
+                "KRI-05",
+                "KRI-06",
+                "KRI-08",
+                "KRI-09",
+            ],
         )
 
     def test_kri_01_missing_security_agent(self):
@@ -205,28 +214,6 @@ class KRIRegisterTest(unittest.TestCase):
         unknown = evaluate(ControlPosture(asset_uuid="asset-1"))["KRI-06"]
         self.assertEqual(unknown.status, UNKNOWN)
 
-    def test_kri_07_active_compromise(self):
-        infected = evaluate(
-            ControlPosture(asset_uuid="asset-1"),
-            edr_status={"infection_status": "infected", "behavioral_matches": []},
-        )["KRI-07"]
-        self.assertEqual(infected.status, DETECTED)
-        behavior = evaluate(
-            ControlPosture(asset_uuid="asset-1"),
-            edr_status={
-                "infection_status": "unknown",
-                "behavioral_matches": ["Suspicious PowerShell beacon"],
-            },
-        )["KRI-07"]
-        self.assertEqual(behavior.status, DETECTED)
-        clean = evaluate(
-            ControlPosture(asset_uuid="asset-1"),
-            edr_status={"infection_status": "clean", "behavioral_matches": []},
-        )["KRI-07"]
-        self.assertEqual(clean.status, NOT_DETECTED)
-        unknown = evaluate(ControlPosture(asset_uuid="asset-1"))["KRI-07"]
-        self.assertEqual(unknown.status, UNKNOWN)
-
     def test_detection_counts(self):
         results = evaluate(
             ControlPosture(
@@ -237,11 +224,11 @@ class KRIRegisterTest(unittest.TestCase):
             )
         )
         counts = detection_counts(list(results.values()))
-        self.assertEqual(sum(counts.values()), 7)
+        self.assertEqual(sum(counts.values()), 8)
         self.assertEqual(counts[DETECTED], 1)
-        self.assertEqual(counts[NOT_DETECTED], 1)
-        self.assertEqual(counts[UNKNOWN], 2)
-        self.assertEqual(counts[NOT_APPLICABLE], 3)
+        self.assertEqual(counts[NOT_DETECTED], 0)
+        self.assertEqual(counts[UNKNOWN], 3)
+        self.assertEqual(counts[NOT_APPLICABLE], 4)
 
 
 if __name__ == "__main__":
