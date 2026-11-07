@@ -156,7 +156,8 @@ with a reason and a source on the owning record:
 ### 4.3 Evidence records
 
 Each stage writes `runs/<run-id>/stages/NN-<stage>.json`. Finalization also writes
-`executive-summary.md`, a one-page management view of the same run records. The stage record
+`executive-summary.md` and a styled `executive-summary.html`, a one-page management
+view of the same run records. The stage record
 includes the contract id, methodology stage, kind, gate, attempt, duration, source
 calls (last 50), unknowns, errors, and a SHA-256 manifest entry. `run.json` is the
 replayable state; reports are generated from the same records.
@@ -234,7 +235,7 @@ live batch runner and the unit/integration suite:
 3. It runs the production read-only `Pipeline` for each CVE and records the
    resulting run state and stage contracts.
 4. It writes one consolidated management report in **Markdown, HTML, and PDF**,
-   plus one `executive-summary.md` per run.
+   plus one `executive-summary.md` and `executive-summary.html` per run.
 5. Unit/integration tests use deterministic fixtures for the Human Approval chain,
    KRI logic, advisory ranges, stale-scan handling, evidence integrity, and
    executive-summary generation.

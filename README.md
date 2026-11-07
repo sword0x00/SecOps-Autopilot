@@ -332,6 +332,7 @@ runs/<run-id>/
   report.md                human-readable evidence report
   report.html              self-contained, printable report
   executive-summary.md     management one-pager generated on every run
+  executive-summary.html   same one-pager, styled for presentation
   stages/01-intake.json    one record per stage, with its contract
   stages/02-exposure.json
   ...

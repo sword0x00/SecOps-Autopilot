@@ -6,6 +6,8 @@ Layout for each run::
       run.json
       report.md
       report.html
+      executive-summary.md
+      executive-summary.html
       stages/01-intake.json
       ...
       manifest.json
@@ -29,7 +31,12 @@ from typing import Any
 from .config import Settings
 from .errors import EvidenceError, StateError
 from .models import STAGE_LABELS, RunState, StageRecord
-from .report import render_executive_summary, render_html, render_markdown
+from .report import (
+    render_executive_summary,
+    render_executive_summary_html,
+    render_html,
+    render_markdown,
+)
 from .util import (
     atomic_write,
     read_json,
@@ -186,17 +193,21 @@ class RunStore:
                 "markdown": "report.md",
                 "html": "report.html",
                 "executive_summary": "executive-summary.md",
+                "executive_summary_html": "executive-summary.html",
             }
         )
         markdown = self.settings.redact(render_markdown(run))
         html = self.settings.redact(render_html(run))
         executive = self.settings.redact(render_executive_summary(run))
+        executive_html = self.settings.redact(render_executive_summary_html(run))
         atomic_write(directory / "report.md", markdown)
         atomic_write(directory / "report.html", html)
         atomic_write(directory / "executive-summary.md", executive)
+        atomic_write(directory / "executive-summary.html", executive_html)
         self._secure(directory / "report.md")
         self._secure(directory / "report.html")
         self._secure(directory / "executive-summary.md")
+        self._secure(directory / "executive-summary.html")
         self.save(run)
 
     def finalize(self, run: RunState) -> dict[str, Any]:

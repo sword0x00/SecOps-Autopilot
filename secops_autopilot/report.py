@@ -10,6 +10,8 @@ import html
 import json
 from typing import Any
 
+import markdown
+
 from .models import STAGE_LABELS, RunState
 from .util import UNKNOWN
 
@@ -1017,6 +1019,31 @@ def render_executive_summary(run: RunState) -> str:
     add(f"- Run directory: `runs/{run.run_id}/`")
     add("")
     return "\n".join(lines)
+
+
+def render_executive_summary_html(run: RunState) -> str:
+    """Self-contained HTML rendering of the management one-pager.
+
+    The Markdown summary is the source of truth; this wrapper gives it the same
+    visual system as the full evidence report for presentation.
+    """
+    source = render_executive_summary(run)
+    # Values originate in scanner data. Escape raw HTML before Markdown
+    # conversion so a hostile asset name cannot inject markup.
+    safe = source.replace("&", "&amp;").replace("<", "&lt;")
+    body = markdown.markdown(safe, extensions=["tables", "sane_lists"])
+    return (
+        '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        f"<title>SecOps Autopilot — Executive summary — {_h(run.run_id)}</title>"
+        f"<style>{_CSS}</style></head><body><div class=\"wrap\">"
+        '<div class="sub">SecOps Autopilot · management summary · '
+        f'<span class="mono">{_h(run.run_id)}</span></div>'
+        f"<section>{body}</section>"
+        '<div class="footer">Generated from the run records; no external assets '
+        "loaded.</div>"
+        "</div></body></html>"
+    )
 
 
 def _h(value: Any) -> str:

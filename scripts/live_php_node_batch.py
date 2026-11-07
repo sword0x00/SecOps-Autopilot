@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
-"""Live, read-only PHP/Node.js batch validation.
+"""Live, read-only all-CVE batch validation.
 
 This is the reproducible form of the discovery + pipeline run. It reads Tenable
 credentials from the environment (or the configured .env), runs the production
 read-only pipeline for each target CVE, and writes:
 
-  reports/live-php-node-phase-validation.md
-  reports/live-php-node-phase-validation.json
+  reports/Phase-Validation-For-All-CVE.md
+  reports/Phase-Validation-For-All-CVE.json
+  reports/Executive-Summary-For-All-CVE.md
+  reports/Executive-Summary-For-All-CVE.html
+  reports/Executive-Summary-For-All-CVE.pdf
 
 It never approves a gate, creates a ticket, contacts the NAC, submits a patch
 job, or restores an asset. Credentials are never written to an artifact.
@@ -54,6 +57,19 @@ DEFAULT_CVES = [
     "CVE-2026-106074",
     "CVE-2026-111497",
 ]
+
+# High-profile CVEs added to the discovered PHP/Node.js set so the published
+# reports cover the full scan, not only the runtime-specific findings.
+ADDED_CVES = [
+    "CVE-2017-0144",   # EternalBlue
+    "CVE-2020-1472",   # ZeroLogon
+    "CVE-2021-26855",  # ProxyLogon
+    "CVE-2021-44228",  # Log4Shell
+    "CVE-2023-4966",   # CitrixBleed
+]
+
+PHASE_VALIDATION_STEM = "Phase-Validation-For-All-CVE"
+EXECUTIVE_SUMMARY_STEM = "Executive-Summary-For-All-CVE"
 
 
 def advisory_for(cve: str) -> dict | None:
@@ -190,16 +206,30 @@ def main() -> int:
 
     settings = Settings.load()
     source = TenableVMClient(settings.vm)
+    scope_mode = "explicit"
+    discovered_count = 0
+    added_count = 0
     if args.cves:
         cves = [item.strip().upper() for item in args.cves.split(",") if item.strip()]
     elif args.discover:
-        cves = discover_cves(source, args.date_range)
-        if not cves:
+        discovered = discover_cves(source, args.date_range)
+        if not discovered:
             print("discovery returned no PHP/Node.js CVEs", file=sys.stderr)
             return 2
-        print(f"discovered {len(cves)} PHP/Node.js CVEs", flush=True)
+        discovered_count = len(discovered)
+        cves = sorted({*discovered, *ADDED_CVES})
+        added_count = len(cves) - discovered_count
+        scope_mode = "discovered_plus_added"
+        print(
+            f"discovered {discovered_count} PHP/Node.js CVEs; "
+            f"running {len(cves)} with {added_count} added high-profile CVEs",
+            flush=True,
+        )
     else:
-        cves = DEFAULT_CVES
+        cves = sorted({*DEFAULT_CVES, *ADDED_CVES})
+        discovered_count = len(DEFAULT_CVES)
+        added_count = len(cves) - discovered_count
+        scope_mode = "default_plus_added"
     store = RunStore(settings)
     pipeline = Pipeline(
         settings,
@@ -245,8 +275,10 @@ def main() -> int:
     payload = {
         "generated_at": generated,
         "scope": {
-            "mode": "discovered" if args.discover else "explicit",
+            "mode": scope_mode,
             "cve_count": len(cves),
+            "discovered_count": discovered_count,
+            "added_count": added_count,
         },
         "source": {
             "name": source.name,
@@ -266,21 +298,21 @@ def main() -> int:
             ),
         },
     }
-    (out_dir / "live-php-node-phase-validation.json").write_text(
+    (out_dir / f"{PHASE_VALIDATION_STEM}.json").write_text(
         json.dumps(payload, indent=2, default=str) + "\n", encoding="utf-8"
     )
-    (out_dir / "live-php-node-phase-validation.md").write_text(
+    (out_dir / f"{PHASE_VALIDATION_STEM}.md").write_text(
         _render_markdown(payload), encoding="utf-8"
     )
     _write_executive_formats(
         _render_executive_summary(payload),
         out_dir,
-        "live-php-node-executive-summary",
+        EXECUTIVE_SUMMARY_STEM,
     )
     if args.json:
         print(json.dumps(payload, indent=2, default=str))
     else:
-        print(f"report: {out_dir / 'live-php-node-phase-validation.md'}")
+        print(f"report: {out_dir / f'{PHASE_VALIDATION_STEM}.md'}")
         print(json.dumps(payload["summary"], indent=2))
     return 0
 
@@ -441,19 +473,29 @@ def _render_executive_summary(payload: dict) -> str:
 
     lines = []
     add = lines.append
-    add("# Executive summary for management — live PHP/Node.js batch")
+    scope = payload.get("scope") or {}
+    add("# Executive summary for management — all CVE scan")
     add("")
     add(f"**Generated:** {payload['generated_at']}  ")
     add(f"**Source:** {payload['source']['name']} — {payload['source']['base_url']} "
         f"(live={payload['source']['live']})  ")
-    add(f"**Scope:** {payload['summary']['total']} CVEs discovered from PHP/Node.js plugin findings  ")
+    if scope.get("mode") == "explicit":
+        add(f"**Scope:** {payload['summary']['total']} CVE runs (explicit list)  ")
+    else:
+        add(
+            f"**Scope:** {payload['summary']['total']} CVE runs — "
+            f"{scope.get('discovered_count', 0)} discovered from PHP/Node.js plugin findings "
+            f"plus {scope.get('added_count', 0)} added high-profile CVEs  "
+        )
     add("**Safety:** read-only; no ticket, containment, patch, or restore executed.")
     add("")
     add("## Bottom line")
     add("")
     add(
         f"{payload['summary']['total']} CVEs were processed with "
-        f"{payload['summary']['errors']} errors. All runs stopped at the ticket gate. "
+        f"{payload['summary']['errors']} errors. "
+        f"{payload['summary']['no_exposure']} had no Tenable plugin match; "
+        f"{payload['summary']['awaiting_ticket_approval']} stopped at the ticket gate. "
         f"{len(assets)} unique assets were returned; {target_assets} of {planned_assets} "
         "asset plans had a verified target version."
     )
@@ -568,10 +610,10 @@ def _render_executive_summary(payload: dict) -> str:
     add("")
     add("## Evidence")
     add("")
-    add("- `reports/live-php-node-phase-validation.md` — per-CVE and phase detail")
-    add("- `reports/live-php-node-phase-validation.json` — machine-readable results")
-    add("- `reports/live-php-node-assessment.md` — issue analysis and priorities")
-    add("- `reports/executive-summaries/<run-id>.md` — one management summary per run")
+    add(f"- `reports/{PHASE_VALIDATION_STEM}.md` — per-CVE and phase detail")
+    add(f"- `reports/{PHASE_VALIDATION_STEM}.json` — machine-readable results")
+    add(f"- `reports/{EXECUTIVE_SUMMARY_STEM}.md` / `.html` / `.pdf` — this summary")
+    add("- `runs/<run-id>/executive-summary.md` — one management summary per run")
     add("")
     return "\n".join(lines)
 
@@ -580,7 +622,7 @@ def _render_markdown(payload: dict) -> str:
     results = payload["results"]
     lines: list[str] = []
     add = lines.append
-    add("# Live PHP/Node.js phase validation")
+    add("# Phase validation for all CVEs")
     add("")
     add(f"**Generated:** {payload['generated_at']}  ")
     add(
@@ -589,10 +631,15 @@ def _render_markdown(payload: dict) -> str:
     )
     add(f"**Window:** last {payload['source']['date_range_days']} days  ")
     add(f"**CVEs attempted:** {payload['summary']['total']}  ")
-    add(
-        f"**Scope:** {payload.get('scope', {}).get('mode', 'explicit')} "
-        f"({payload.get('scope', {}).get('cve_count', payload['summary']['total'])} CVEs)"
-    )
+    scope = payload.get("scope") or {}
+    if scope.get("mode") == "explicit":
+        add(f"**Scope:** explicit list ({payload['summary']['total']} CVEs)")
+    else:
+        add(
+            f"**Scope:** {payload['summary']['total']} CVE runs — "
+            f"{scope.get('discovered_count', 0)} discovered from PHP/Node.js plugin findings "
+            f"plus {scope.get('added_count', 0)} added high-profile CVEs"
+        )
     add("")
     add("## Scope and safety")
     add("")
